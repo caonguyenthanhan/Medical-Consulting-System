@@ -70,7 +70,7 @@ export function ChatInterface() {
       }
 
       const data = await response.json()
-      const aiResponse = parseModelResponse(data.generated_text)
+      const aiResponse = data.response || parseModelResponse(data.generated_text || data.response)
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),

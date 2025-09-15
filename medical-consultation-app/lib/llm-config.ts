@@ -1,7 +1,7 @@
 // Configuration for custom LLM model
 export const LLM_CONFIG = {
   // Configurable variables that can be changed later
-  adapter_dir: "lora_model",
+  adapter_dir: "d:\\desktop\\tlcn\\medical consulting system\\model\\lora_model_ViHealthQA",
   model_name: "unsloth/llama-3.1-8b-bnb-4bit",
 
   // Model parameters
@@ -29,10 +29,10 @@ ${question}
 // Parse response from model (handles different output formats)
 export function parseModelResponse(generated_text: string): string {
   if (generated_text.includes("### Answer:")) {
-    return generated_text.split("### Answer:")[1].strip().replace("EOS", "")
+    return generated_text.split("### Answer:")[1].trim().replace("EOS", "")
   } else if (generated_text.includes("### Output:")) {
-    return generated_text.split("### Output:")[1].strip().replace("EOS", "")
+    return generated_text.split("### Output:")[1].trim().replace("EOS", "")
   } else {
-    return generated_text.strip()
+    return generated_text.trim()
   }
 }
