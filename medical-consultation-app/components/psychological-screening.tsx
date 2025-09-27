@@ -866,35 +866,36 @@ export function PsychologicalScreening() {
     const interpretation = getInterpretation(score)
 
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 max-h-screen overflow-y-auto">
         <Card>
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>Kết quả {selectedAssessment.title}</CardTitle>
-            <CardDescription>
-              Điểm số: {score}/{selectedAssessment.questions.length * 3}
-            </CardDescription>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Kết quả {selectedAssessment.title}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {interpretation && (
               <>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <h3 className="font-semibold text-lg mb-2">Mức độ: {interpretation.level}</h3>
-                  <p className="text-muted-foreground">{interpretation.description}</p>
+                <div className="text-center p-6 bg-muted rounded-lg">
+                  <div className="text-3xl font-bold text-primary mb-2">{score}</div>
+                  <div className="text-lg font-semibold mb-1">{interpretation.level}</div>
+                  <div className="text-sm text-muted-foreground">{interpretation.description}</div>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold mb-3">Đề xuất:</h4>
-                  <div className="space-y-2">
+                <div className="space-y-3">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    Đề xuất:
+                  </h4>
+                  <ul className="space-y-2">
                     {interpretation.recommendations.map((rec, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />
-                        <p className="text-sm">{rec}</p>
-                      </div>
+                      <li key={index} className="flex items-start gap-2 text-sm">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
+                        {rec}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
 
                 <div className="space-y-3">
@@ -913,57 +914,47 @@ export function PsychologicalScreening() {
                 </div>
 
                 <Alert>
-                  <Info className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Kết quả này chỉ mang tính chất tham khảo. Để có đánh giá chính xác, vui lòng tham khảo ý kiến chuyên
-                    gia tâm lý hoặc bác sĩ tâm thần.
+                    Kết quả này chỉ mang tính chất tham khảo. Nếu bạn có lo ngại về sức khỏe tâm thần, 
+                    hãy tham khảo ý kiến của chuyên gia y tế.
                   </AlertDescription>
                 </Alert>
+
+                {/* Action buttons with improved spacing and visibility */}
+                <div className="space-y-3 pt-4 border-t">
+                  <Button
+                    onClick={() => setShowPDFGenerator(true)}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Tạo báo cáo PDF
+                  </Button>
+                  
+                  <Button 
+                    onClick={resetAssessment} 
+                    className="w-full bg-primary hover:bg-primary/90"
+                  >
+                    Thực hiện bài test khác
+                  </Button>
+                </div>
               </>
             )}
-
-            <div className="space-y-3">
-              <Button
-                  className="w-full mb-2"
-                  onClick={() => {
-                    console.log('PDF Generator button clicked');
-                    setShowPDFGenerator(true);
-                  }} 
-                  variant="outline" 
-                  size="sm"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Tạo báo cáo PDF
-                </Button>
-              
-              <Button
-                onClick={() => {
-                  console.log('Toggle Test - Current showPDFGenerator:', showPDFGenerator);
-                  setShowPDFGenerator(!showPDFGenerator);
-                  console.log('Toggle Test - setShowPDFGenerator called with:', !showPDFGenerator);
-                }}
-                variant="secondary"
-                className="w-full"
-              >
-                {/* Debug Toggle PDF ({showPDFGenerator ? 'ON' : 'OFF'}) */}
-              </Button>
-              
-              <Button onClick={resetAssessment} className="w-full">
-                Thực hiện bài test khác
-              </Button>
-            </div>
           </CardContent>
         </Card>
         
-        {/* PDF Generator Component - moved inside results section */}
+        {/* PDF Generator Component - moved outside main card for better layout */}
         {showPDFGenerator && selectedAssessment && (
-          <PDFReportGenerator
-            assessment={selectedAssessment}
-            answers={answers}
-            score={calculateScore()}
-            interpretation={getInterpretation(calculateScore())}
-            onClose={() => setShowPDFGenerator(false)}
-          />
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+            <PDFReportGenerator
+              assessment={selectedAssessment}
+              answers={answers}
+              score={calculateScore()}
+              interpretation={getInterpretation(calculateScore())}
+              onClose={() => setShowPDFGenerator(false)}
+            />
+          </div>
         )}
       </div>
     )
@@ -975,7 +966,7 @@ export function PsychologicalScreening() {
     const currentAnswer = answers[question.id]
 
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 max-h-screen overflow-y-auto">
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>
@@ -1025,7 +1016,7 @@ export function PsychologicalScreening() {
           </CardContent>
         </Card>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pb-4">
           <Button variant="outline" onClick={resetAssessment} className="flex-1 bg-transparent">
             Hủy bỏ
           </Button>
@@ -1039,7 +1030,7 @@ export function PsychologicalScreening() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 max-h-screen overflow-y-auto">
       <div className="text-center py-4">
         <h2 className="text-xl font-bold mb-2">Sàng lọc Tâm lý</h2>
         <p className="text-muted-foreground text-sm">Đánh giá sức khỏe tâm thần với các bài test chuẩn quốc tế</p>
@@ -1115,8 +1106,8 @@ export function PsychologicalScreening() {
         </CardContent>
       </Card>
 
-
-
+      {/* Add some bottom padding to ensure content is not cut off */}
+      <div className="pb-8"></div>
     </div>
   )
 }

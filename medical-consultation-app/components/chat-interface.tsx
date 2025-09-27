@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Send, AlertTriangle } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Send, AlertTriangle, Bot, User, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,29 +25,97 @@ export function ChatInterface() {
       timestamp: new Date(),
     },
   ])
-  const [inputValue, setInputValue] = useState("")
+  const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const suggestedQuestions = [
-    "Tôi bị đau đầu, có phải cảm cúm không?",
-    "Liệu pháp nào giúp giảm lo âu?",
-    "Thông tin về thuốc Paracetamol?",
-    "Cách phòng ngừa cảm cúm?",
-  ]
+  // Smart suggestion system based on context and conversation history
+  const getSmartSuggestions = () => {
+    // Base suggestions for new conversations
+    const baseSuggestions = [
+      "Tôi bị đau đầu, có phải cảm cúm không?",
+      "Liệu pháp nào giúp giảm lo âu?",
+      "Thông tin về thuốc Paracetamol?",
+      "Cách phòng ngừa cảm cúm?",
+    ]
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return
+    // Advanced suggestions based on conversation context
+    const contextualSuggestions = {
+      pain: [
+        "Đau đầu kéo dài bao lâu thì cần đi khám?",
+        "Cách giảm đau tự nhiên không dùng thuốc?",
+        "Phân biệt đau đầu thường và đau đầu nguy hiểm?",
+        "Thuốc giảm đau nào an toàn nhất?"
+      ],
+      mental: [
+        "Làm thế nào để biết mình có trầm cảm?",
+        "Kỹ thuật thở giúp giảm căng thẳng?",
+        "Khi nào cần gặp bác sĩ tâm lý?",
+        "Cách cải thiện giấc ngủ tự nhiên?"
+      ],
+      medication: [
+        "Cách uống thuốc đúng cách?",
+        "Tác dụng phụ của thuốc kháng sinh?",
+        "Thuốc có thể uống cùng thức ăn không?",
+        "Quên uống thuốc thì phải làm sao?"
+      ],
+      prevention: [
+        "Chế độ ăn tăng cường miễn dịch?",
+        "Tập thể dục như thế nào để khỏe mạnh?",
+        "Cách phòng ngừa bệnh tim mạch?",
+        "Kiểm tra sức khỏe định kỳ gồm gì?"
+      ]
+    }
+
+    // Analyze recent messages for context
+    if (messages.length > 1) {
+      const recentMessages = messages.slice(-3).map(m => m.content.toLowerCase())
+      const conversationText = recentMessages.join(' ')
+
+      // Detect conversation themes
+      if (conversationText.includes('đau') || conversationText.includes('nhức')) {
+        return contextualSuggestions.pain
+      }
+      if (conversationText.includes('lo âu') || conversationText.includes('stress') || 
+          conversationText.includes('trầm cảm') || conversationText.includes('tâm lý')) {
+        return contextualSuggestions.mental
+      }
+      if (conversationText.includes('thuốc') || conversationText.includes('uống') || 
+          conversationText.includes('liều')) {
+        return contextualSuggestions.medication
+      }
+      if (conversationText.includes('phòng ngừa') || conversationText.includes('tránh') || 
+          conversationText.includes('ngăn ngừa')) {
+        return contextualSuggestions.prevention
+      }
+    }
+
+    return baseSuggestions
+  }
+
+  const suggestedQuestions = getSmartSuggestions()
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const handleSubmit = async () => {
+    if (!input.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue,
+      content: input,
       isUser: true,
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    const currentInput = inputValue
-    setInputValue("")
+    const currentInput = input
+    setInput("")
     setIsLoading(true)
 
     try {
@@ -97,97 +165,138 @@ export function ChatInterface() {
   }
 
   const handleSuggestedQuestion = (question: string) => {
-    setInputValue(question)
+    setInput(question)
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)]">
+    <div className="flex flex-col h-full bg-gradient-to-b from-blue-50/50 to-white">
       {/* Medical Disclaimer */}
-      <Alert className="m-4 mb-2 border-amber-200 bg-amber-50">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-amber-800 text-sm">
-          <strong>Lưu ý quan trọng:</strong> Đây là AI được huấn luyện chuyên biệt về y tế, nhưng không thay thế cho lời
-          khuyên hoặc chẩn đoán của bác sĩ chuyên nghiệp.
-        </AlertDescription>
-      </Alert>
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 m-4 mb-3 shadow-sm">
+        <div className="flex items-start space-x-3">
+          <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <AlertTriangle className="h-4 w-4 text-white" />
+          </div>
+          <div className="text-sm">
+            <p className="text-amber-800 font-medium mb-1">
+              Lưu ý quan trọng
+            </p>
+            <p className="text-amber-700 text-xs leading-relaxed">
+              Thông tin này chỉ mang tính chất tham khảo. Vui lòng tham khảo ý kiến bác sĩ chuyên khoa để được chẩn đoán và điều trị chính xác.
+            </p>
+          </div>
+        </div>
+      </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 space-y-4">
-        {messages.map((message) => (
-          <div key={message.id} className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
-            <Card className={`max-w-[80%] ${message.isUser ? "bg-primary text-primary-foreground" : "bg-card"}`}>
-              <CardContent className="p-3">
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                <p
-                  className={`text-xs mt-1 opacity-70 ${
-                    message.isUser ? "text-primary-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {message.timestamp.toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </CardContent>
-            </Card>
+      {/* Messages Container */}
+      <div 
+        className="flex-1 overflow-y-auto px-4 pb-4"
+        style={{ 
+          scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`flex items-start space-x-2 ${
+              message.isUser ? 'justify-end' : 'justify-start'
+            }`}
+          >
+            {!message.isUser && (
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <Bot className="h-3 w-3 text-white" />
+              </div>
+            )}
+            
+            <div
+              className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                message.isUser
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              }`}
+            >
+              <p className="text-sm whitespace-pre-wrap">
+                {message.content}
+              </p>
+            </div>
+
+            {message.isUser && (
+              <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                <User className="h-3 w-3 text-white" />
+              </div>
+            )}
           </div>
         ))}
 
+        {/* Loading Animation */}
         {isLoading && (
           <div className="flex justify-start">
-            <Card className="bg-muted">
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                  <div
-                    className="w-2 h-2 bg-primary rounded-full animate-pulse"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-primary rounded-full animate-pulse"
-                    style={{ animationDelay: "0.4s" }}
-                  ></div>
-                  <span className="text-sm text-muted-foreground ml-2">AI đang phân tích...</span>
+            <div className="flex items-start space-x-2">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                <Bot className="h-3 w-3 text-white" />
+              </div>
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2">
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Đang trả lời...</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Suggested Questions */}
       {messages.length === 1 && (
-        <div className="px-4 py-2">
-          <p className="text-sm text-muted-foreground mb-2">Câu hỏi gợi ý:</p>
-          <div className="space-y-2">
+        <div className="px-4 pb-3 flex-shrink-0">
+          <div className="grid grid-cols-1 gap-2">
             {suggestedQuestions.map((question, index) => (
-              <Button
+              <button
                 key={index}
-                variant="outline"
-                size="sm"
-                className="w-full text-left justify-start h-auto py-2 px-3 bg-transparent"
                 onClick={() => handleSuggestedQuestion(question)}
+                className="text-left p-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-200 transition-all duration-200 shadow-sm active:scale-95"
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation'
+                }}
               >
-                <span className="text-sm text-wrap">{question}</span>
-              </Button>
+                {question}
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+      {/* Input Section */}
+      <div className="p-4 bg-white/95 backdrop-blur-sm border-t border-gray-100 flex-shrink-0">
+        <div className="flex space-x-3">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
             placeholder="Nhập câu hỏi của bạn..."
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            className="flex-1"
+            className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm"
+            style={{ 
+              WebkitTapHighlightColor: 'transparent'
+            }}
           />
-          <Button onClick={handleSendMessage} size="icon">
+          <button
+            onClick={handleSubmit}
+            disabled={!input.trim() || isLoading}
+            className="px-5 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md active:scale-95"
+            style={{ 
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation'
+            }}
+          >
             <Send className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </div>
     </div>

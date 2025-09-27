@@ -5,7 +5,7 @@ import { Send, Bot, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { createPrompt, parseModelResponse } from "@/lib/llm-config"
+// Removed llm-config import as we now use Gemini API directly
 
 interface Message {
   id: string
@@ -51,21 +51,22 @@ export function AiChatBox({
     setIsLoading(true)
 
     try {
-      const contextualQuestion = context ? `${context}: ${inputValue}` : inputValue
+      // Prepare conversation history for context
+      const conversationHistory = messages.map(msg => ({
+        role: msg.isUser ? 'user' : 'assistant',
+        content: msg.content
+      }))
 
-      const prompt = createPrompt(contextualQuestion)
-
-      // Simulate API call to custom LLM backend
-      // In production, this would call your Python model API
+      // Call Gemini API through our backend
       const response = await fetch("/api/llm-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt,
-          context,
           question: inputValue,
+          context: context,
+          conversationHistory: conversationHistory,
         }),
       })
 
@@ -74,7 +75,7 @@ export function AiChatBox({
       }
 
       const data = await response.json()
-      const aiResponse = data.response || parseModelResponse(data.generated_text || data.response)
+      const aiResponse = data.response
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),

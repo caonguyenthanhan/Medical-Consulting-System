@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { MessageCircle, Search, ClipboardList, Heart, Shield, Users } from "lucide-react"
+import { MessageCircle, Search, ClipboardList, Heart, Shield, Users, Sparkles } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChatInterface } from "@/components/chat-interface"
@@ -27,56 +28,68 @@ export default function MedicalApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-md mx-auto bg-background min-h-screen shadow-xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div 
+        className="w-full max-w-sm mx-auto bg-white/98 backdrop-blur-md shadow-2xl border border-gray-100 flex flex-col overflow-hidden rounded-3xl"
+        style={{ 
+          aspectRatio: '9/16',
+          height: '100vh',
+          maxHeight: '844px',
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+        }}
+      >
         {/* Header */}
-        <header className="bg-primary text-primary-foreground p-4 text-center">
-          <h1 className="text-xl font-bold">Tư vấn Y tế AI</h1>
-          <p className="text-sm opacity-90">Chăm sóc sức khỏe thông minh</p>
+        <header className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg flex-shrink-0 rounded-t-3xl">
+          <div className="px-4 py-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center p-1">
+                <Image 
+                  src="/medical-logo.png" 
+                  alt="Medical Logo" 
+                  width={24} 
+                  height={24}
+                  className="object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold">Tư vấn Y tế AI</h1>
+                <p className="text-blue-100 text-xs">Chăm sóc sức khỏe thông minh</p>
+              </div>
+            </div>
+          </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 pb-20">{renderContent()}</main>
+        <main className="flex-1 overflow-hidden flex flex-col">{renderContent()}</main>
 
         {/* Bottom Navigation */}
-        <nav className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-background border-t border-border">
-          <div className="flex justify-around py-2">
-            <Button
-              variant={activeTab === "home" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("home")}
-              className="flex flex-col items-center gap-1 h-auto py-2"
-            >
-              <Heart className="h-5 w-5" />
-              <span className="text-xs">Trang chủ</span>
-            </Button>
-            <Button
-              variant={activeTab === "chat" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("chat")}
-              className="flex flex-col items-center gap-1 h-auto py-2"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="text-xs">Tư vấn AI</span>
-            </Button>
-            <Button
-              variant={activeTab === "lookup" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("lookup")}
-              className="flex flex-col items-center gap-1 h-auto py-2"
-            >
-              <Search className="h-5 w-5" />
-              <span className="text-xs">Tra cứu</span>
-            </Button>
-            <Button
-              variant={activeTab === "screening" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("screening")}
-              className="flex flex-col items-center gap-1 h-auto py-2"
-            >
-              <ClipboardList className="h-5 w-5" />
-              <span className="text-xs">Sàng lọc</span>
-            </Button>
+        <nav className="bg-white/95 backdrop-blur-md border-t border-gray-100 shadow-lg flex-shrink-0 rounded-b-3xl">
+          <div className="grid grid-cols-4 gap-1 p-3 pb-4">
+            {[
+              { id: 'home', icon: Heart, label: 'Trang chủ' },
+              { id: 'chat', icon: MessageCircle, label: 'Tư vấn' },
+              { id: 'lookup', icon: Search, label: 'Tra cứu' },
+              { id: 'screening', icon: ClipboardList, label: 'Sàng lọc' }
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as ActiveTab)}
+                className={`flex flex-col items-center justify-center space-y-1 py-2 px-1 rounded-xl transition-all duration-200 ${
+                  activeTab === item.id 
+                    ? 'text-blue-600 bg-blue-50 scale-105 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 active:scale-95'
+                }`}
+                style={{ 
+                  WebkitTapHighlightColor: 'transparent',
+                  touchAction: 'manipulation'
+                }}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-xs font-medium">{item.label}</span>
+              </button>
+            ))}
           </div>
         </nav>
       </div>
@@ -86,85 +99,115 @@ export default function MedicalApp() {
 
 function HomePage({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void }) {
   return (
-    <div className="p-4 space-y-6">
+    <div 
+      className="flex-1 overflow-y-auto p-5 space-y-6"
+      style={{ 
+        WebkitOverflowScrolling: 'touch',
+        scrollBehavior: 'smooth'
+      }}
+    >
       {/* Welcome Section */}
-      <div className="text-center py-6">
-        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Heart className="h-10 w-10 text-primary" />
+      <div className="text-center space-y-4 pt-2">
+        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+          <Heart className="h-8 w-8 text-white" />
         </div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">Chào mừng đến với Tư vấn Y tế AI</h2>
-        <p className="text-muted-foreground text-balance">
-          Ứng dụng hỗ trợ chăm sóc sức khỏe thông minh với AI, tra cứu thông tin y khoa và sàng lọc tâm lý
-        </p>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">
+            Chào mừng đến với AI Medical
+          </h2>
+          <p className="text-gray-600 text-sm">
+            Hệ thống tư vấn y tế thông minh
+          </p>
+        </div>
       </div>
 
-      {/* Features */}
-      <div className="space-y-4">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("chat")}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <MessageCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Tư vấn AI</CardTitle>
-                <CardDescription>Trò chuyện với AI về các vấn đề sức khỏe</CardDescription>
-              </div>
+      {/* Feature Cards */}
+      <div className="grid grid-cols-1 gap-4">
+        <Card 
+          className="p-5 cursor-pointer hover:shadow-lg transition-all duration-200 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 rounded-2xl active:scale-95"
+          onClick={() => setActiveTab('chat')}
+          style={{ 
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation'
+          }}
+        >
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
+              <MessageCircle className="h-6 w-6 text-white" />
             </div>
-          </CardHeader>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 text-base mb-1">Tư vấn AI</h3>
+              <p className="text-sm text-gray-600">Đặt câu hỏi và nhận tư vấn y tế</p>
+            </div>
+          </div>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("lookup")}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
-                <Search className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Tra cứu Y khoa</CardTitle>
-                <CardDescription>Tìm kiếm thông tin về bệnh lý, thuốc và triệu chứng</CardDescription>
-              </div>
+        <Card 
+          className="p-5 cursor-pointer hover:shadow-lg transition-all duration-200 bg-gradient-to-r from-green-50 to-green-100 border-green-200 rounded-2xl active:scale-95"
+          onClick={() => setActiveTab('lookup')}
+          style={{ 
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation'
+          }}
+        >
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-md">
+              <Search className="h-6 w-6 text-white" />
             </div>
-          </CardHeader>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 text-base mb-1">Tra cứu Y khoa</h3>
+              <p className="text-sm text-gray-600">Tìm kiếm thông tin về bệnh lý</p>
+            </div>
+          </div>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("screening")}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-chart-2/20 rounded-lg flex items-center justify-center">
-                <ClipboardList className="h-5 w-5 text-chart-2" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Sàng lọc Tâm lý</CardTitle>
-                <CardDescription>Đánh giá sức khỏe tâm thần với các bài test chuẩn</CardDescription>
-              </div>
+        <Card 
+          className="p-5 cursor-pointer hover:shadow-lg transition-all duration-200 bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200 rounded-2xl active:scale-95"
+          onClick={() => setActiveTab('screening')}
+          style={{ 
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation'
+          }}
+        >
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <ClipboardList className="h-6 w-6 text-white" />
             </div>
-          </CardHeader>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 text-base mb-1">Sàng lọc Tâm lý</h3>
+              <p className="text-sm text-gray-600">Đánh giá tình trạng sức khỏe tâm thần</p>
+            </div>
+          </div>
         </Card>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 pt-4">
-        <div className="text-center">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
-            <Shield className="h-6 w-6 text-primary" />
+      {/* Stats Section */}
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-5 shadow-sm">
+        <h3 className="font-semibold text-gray-900 mb-4 text-base">
+          Thống kê hệ thống
+        </h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mx-auto mb-2 shadow-md">
+              <Users className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-base font-bold text-gray-900">1,234</div>
+            <div className="text-xs text-gray-600 font-medium">Người dùng</div>
           </div>
-          <p className="text-sm font-medium">An toàn</p>
-          <p className="text-xs text-muted-foreground">Bảo mật thông tin</p>
-        </div>
-        <div className="text-center">
-          <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-2">
-            <Heart className="h-6 w-6 text-accent" />
+          <div className="text-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-2 shadow-md">
+              <MessageCircle className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-base font-bold text-gray-900">5,678</div>
+            <div className="text-xs text-gray-600 font-medium">Tư vấn</div>
           </div>
-          <p className="text-sm font-medium">Tin cậy</p>
-          <p className="text-xs text-muted-foreground">Nguồn uy tín</p>
-        </div>
-        <div className="text-center">
-          <div className="w-12 h-12 bg-chart-2/20 rounded-full flex items-center justify-center mx-auto mb-2">
-            <Users className="h-6 w-6 text-chart-2" />
+          <div className="text-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-2 shadow-md">
+              <Shield className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-base font-bold text-gray-900">98%</div>
+            <div className="text-xs text-gray-600 font-medium">Hài lòng</div>
           </div>
-          <p className="text-sm font-medium">Hỗ trợ</p>
-          <p className="text-xs text-muted-foreground">24/7</p>
         </div>
       </div>
     </div>

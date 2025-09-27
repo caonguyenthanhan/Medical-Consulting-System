@@ -50,359 +50,298 @@ export function PDFReportGenerator({
     additionalNotes: ""
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const handleInputChange = (field: keyof UserInfo, value: string) => {
     setUserInfo(prev => ({ ...prev, [field]: value }))
   }
 
-  // const generatePDF = async () => {
-  //   console.log('generatePDF function called')
-  //   setIsGenerating(true)
-  //   try {
-  //     console.log('Starting PDF generation...')
-  //     const pdf = new jsPDF('p', 'mm', 'a4')
-  //     const pageWidth = pdf.internal.pageSize.getWidth()
-  //     const pageHeight = pdf.internal.pageSize.getHeight()
-  //     const margin = 20
-  //     let yPosition = margin
-
-  //     // Helper function to safely add text with Unicode support
-  //     const addText = (text: string, x: number, y: number, options?: any) => {
-  //       try {
-  //         // Try to add text with Unicode support first
-  //         pdf.text(text, x, y, options)
-  //       }
-
-      // Helper functions để set font an toàn
-      const setFontSafe = (style: 'normal' | 'bold' = 'normal') => {
-        if (useCustomFont) {
-          pdf.setFont('Roboto', style);
-        } else {
-          pdf.setFont('helvetica', style);
-        }
-      };
-  //         console.warn('Unicode text failed, falling back to Latin conversion:', err)
-  //         // Fallback: Convert Vietnamese characters to basic Latin
-  //         const safeText = text
-  //           .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
-  //           .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
-  //           .replace(/[ìíịỉĩ]/g, 'i')
-  //           .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
-  //           .replace(/[ùúụủũưừứựửữ]/g, 'u')
-  //           .replace(/[ỳýỵỷỹ]/g, 'y')
-  //           .replace(/[đ]/g, 'd')
-  //           .replace(/[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]/g, 'A')
-  //           .replace(/[ÈÉẸẺẼÊỀẾỆỂỄ]/g, 'E')
-  //           .replace(/[ÌÍỊỈĨ]/g, 'I')
-  //           .replace(/[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]/g, 'O')
-  //           .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, 'U')
-  //           .replace(/[ỲÝỴỶỸ]/g, 'Y')
-  //           .replace(/[Đ]/g, 'D')
-  //         try {
-  //           pdf.text(safeText, x, y, options)
-  //         } catch (fallbackErr) {
-  //           console.warn('Fallback also failed, using ASCII only:', fallbackErr)
-  //           pdf.text(text.replace(/[^\x00-\x7F]/g, '?'), x, y, options)
-  //         }
-  //       }
-  //     }
-
-  //     // Header
-  //     pdf.setFontSize(20)
-  //     pdf.setFont('helvetica', 'bold')
-  //     addText('BAO CAO DANH GIA TAM LY', pageWidth / 2, yPosition, { align: 'center' })
-  //     yPosition += 15
-
-  //     pdf.setFontSize(16)
-  //     addText(assessment.title, pageWidth / 2, yPosition, { align: 'center' })
-  //     yPosition += 20
-
-  //     // User Information
-  //     pdf.setFontSize(14)
-  //     pdf.setFont('helvetica', 'bold')
-  //     addText('THONG TIN NGUOI THUC HIEN', margin, yPosition)
-  //     yPosition += 10
-
-  //     pdf.setFontSize(12)
-  //     pdf.setFont('helvetica', 'normal')
-  //     const userInfoLines = [
-  //       `Ho va ten: ${userInfo.fullName || 'Khong cung cap'}`,
-  //       `Tuoi: ${userInfo.age || 'Khong cung cap'}`,
-  //       `Gioi tinh: ${userInfo.gender || 'Khong cung cap'}`,
-  //       `Nghe nghiep: ${userInfo.occupation || 'Khong cung cap'}`,
-  //       `Thong tin lien he: ${userInfo.contactInfo || 'Khong cung cap'}`,
-  //       `Ngay thuc hien: ${new Date().toLocaleDateString('vi-VN')}`
-  //     ]
-
-  //     userInfoLines.forEach(line => {
-  //       addText(line, margin, yPosition)
-  //       yPosition += 7
-  //     })
-  //     yPosition += 10
-
-  //     // Assessment Description
-  //     pdf.setFontSize(14)
-  //     pdf.setFont('helvetica', 'bold')
-  //     addText('MO TA BAI DANH GIA', margin, yPosition)
-  //     yPosition += 10
-
-  //     pdf.setFontSize(12)
-  //     pdf.setFont('helvetica', 'normal')
-  //     const descriptionLines = pdf.splitTextToSize(assessment.description, pageWidth - 2 * margin)
-  //     descriptionLines.forEach((line: string) => {
-  //       addText(line, margin, yPosition)
-  //       yPosition += 7
-  //     })
-  //     yPosition += 10
-
-  //     // Results
-  //     pdf.setFontSize(14)
-  //     pdf.setFont('helvetica', 'bold')
-  //     addText('KET QUA DANH GIA', margin, yPosition)
-  //     yPosition += 10
-
-  //     pdf.setFontSize(12)
-  //     pdf.setFont('helvetica', 'normal')
-  //     addText(`Tong diem: ${score}`, margin, yPosition)
-  //     yPosition += 7
-  //     addText(`Muc do: ${interpretation.level}`, margin, yPosition)
-  //     yPosition += 7
-  //     addText(`Dien giai: ${interpretation.description}`, margin, yPosition)
-  //     yPosition += 15
-
-  //     // Recommendations
-  //     pdf.setFontSize(14)
-  //     pdf.setFont('helvetica', 'bold')
-  //     addText('KHUYEN NGHI', margin, yPosition)
-  //     yPosition += 10
-
-  //     pdf.setFontSize(12)
-  //     pdf.setFont('helvetica', 'normal')
-  //     interpretation.recommendations.forEach((rec, index) => {
-  //       const recLines = pdf.splitTextToSize(`${index + 1}. ${rec}`, pageWidth - 2 * margin - 10)
-  //       recLines.forEach((line: string) => {
-  //         if (yPosition > pageHeight - margin) {
-  //           pdf.addPage()
-  //           yPosition = margin
-  //         }
-  //         addText(line, margin + 5, yPosition)
-  //         yPosition += 7
-  //       })
-  //       yPosition += 3
-  //     })
-
-  //     // Additional Notes
-  //     if (userInfo.additionalNotes) {
-  //       yPosition += 10
-  //       pdf.setFontSize(14)
-  //       pdf.setFont('helvetica', 'bold')
-  //       addText('GHI CHU THEM', margin, yPosition)
-  //       yPosition += 10
-
-  //       pdf.setFontSize(12)
-  //       pdf.setFont('helvetica', 'normal')
-  //       const notesLines = pdf.splitTextToSize(userInfo.additionalNotes, pageWidth - 2 * margin)
-  //       notesLines.forEach((line: string) => {
-  //         if (yPosition > pageHeight - margin) {
-  //           pdf.addPage()
-  //           yPosition = margin
-  //         }
-  //         addText(line, margin, yPosition)
-  //         yPosition += 7
-  //       })
-  //     }
-
-  //     // Footer
-  //     const footerY = pageHeight - 15
-  //     pdf.setFontSize(10)
-  //     pdf.setFont('helvetica', 'italic')
-  //     addText('Bao cao nay chi mang tinh chat tham khao. Vui long tham khao y kien chuyen gia de co danh gia chinh xac.', 
-  //       pageWidth / 2, footerY, { align: 'center' })
-
-  //     // Save PDF
-  //     const fileName = `${assessment.id}_report_${new Date().toISOString().split('T')[0]}.pdf`
-  //     console.log('Saving PDF with filename:', fileName)
-  //     pdf.save(fileName)
-  //     console.log('PDF saved successfully')
-
-  //     alert('Tạo báo cáo PDF thành công!')
-
-  //   } catch (error) {
-  //     console.error('Error generating PDF:', error)
-  //     console.error('Error details:', {
-  //       message: error instanceof Error ? error.message : 'Unknown error',
-  //       stack: error instanceof Error ? error.stack : 'No stack trace',
-  //       type: typeof error
-  //     })
-  //     alert(`Có lỗi xảy ra khi tạo báo cáo PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  //   } finally {
-  //     console.log('PDF generation process completed, setting isGenerating to false')
-  //     setIsGenerating(false)
-  //   }
-  // }
-
-  const generatePDF = async () => {
-    setIsGenerating(true);
+  const generatePDFPreview = async () => {
+    setIsGenerating(true)
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      let yPosition = margin;
-      const lineHeight = 7; // Define a standard line height
+      const pdfDoc = await createPDFDocument()
+      const blob = pdfDoc.output('blob')
+      setPdfBlob(blob)
+      setShowPreview(true)
+    } catch (error) {
+      console.error('Error generating PDF preview:', error)
+      alert(`Có lỗi xảy ra khi tạo preview PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
-      // --- PHẦN 1: Thiết lập Font (Sử dụng font mặc định) ---
-      let useCustomFont = false;
-      try {
-        // Thử tải font tiếng Việt từ thư mục /public
-        const fontRegularResponse = await fetch('/fonts/Roboto-Regular.ttf');
-        const fontBoldResponse = await fetch('/fonts/Roboto-Bold.ttf');
+  const downloadPDF = () => {
+    if (pdfBlob) {
+      const fileName = `${assessment.id}_report_${new Date().toISOString().split('T')[0]}.pdf`
+      const url = URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      alert('Tải xuống báo cáo PDF thành công!')
+    }
+  }
+
+  const createPDFDocument = async () => {
+  try {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+    const lineHeight = 7;
+    let useCustomFont = false;
+
+    // --- Font Setup ---
+    try {
+      const fontRegularResponse = await fetch('/fonts/Roboto-Regular.ttf');
+      const fontBoldResponse = await fetch('/fonts/Roboto-Bold.ttf');
+      
+      if (fontRegularResponse.ok && fontBoldResponse.ok) {
+        const fontRegularBuffer = await fontRegularResponse.arrayBuffer();
+        const fontRegularBase64 = btoa(new Uint8Array(fontRegularBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
         
-        if (fontRegularResponse.ok && fontBoldResponse.ok) {
-          // Load Roboto Regular
-          const fontRegularBuffer = await fontRegularResponse.arrayBuffer();
-          const fontRegularBase64 = btoa(
-            new Uint8Array(fontRegularBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
-          
-          // Load Roboto Bold
-          const fontBoldBuffer = await fontBoldResponse.arrayBuffer();
-          const fontBoldBase64 = btoa(
-            new Uint8Array(fontBoldBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-          );
-          
-          // Thêm font vào jsPDF
-          pdf.addFileToVFS('Roboto-Regular.ttf', fontRegularBase64);
-          pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-          
-          pdf.addFileToVFS('Roboto-Bold.ttf', fontBoldBase64);
-          pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
-          
-          useCustomFont = true;
-        }
-      } catch (error) {
-        console.log('Không thể tải font tùy chỉnh, sử dụng font mặc định:', error);
-        // Sử dụng font mặc định của jsPDF
-        pdf.setFont('helvetica');
+        const fontBoldBuffer = await fontBoldResponse.arrayBuffer();
+        const fontBoldBase64 = btoa(new Uint8Array(fontBoldBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        
+        pdf.addFileToVFS('Roboto-Regular.ttf', fontRegularBase64);
+        pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+        
+        pdf.addFileToVFS('Roboto-Bold.ttf', fontBoldBase64);
+        pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+        
+        useCustomFont = true;
+      }
+    } catch (error) {
+      console.log('Cannot load custom font, using default:', error);
+      pdf.setFont('helvetica');
+    }
+
+    const setFontSafe = (style: 'normal' | 'bold' = 'normal') => {
+      if (useCustomFont) {
+        pdf.setFont('Roboto', style);
+      } else {
+        pdf.setFont('helvetica', style);
+      }
+    };
+    
+    // Add organization logo
+    const logoPath = '/medical-logo.png';
+    try {
+      const logoResponse = await fetch(logoPath);
+      const logoBlob = await logoResponse.blob();
+      const reader = new FileReader();
+      reader.readAsDataURL(logoBlob);
+      await new Promise(resolve => reader.onloadend = resolve);
+      pdf.addImage(reader.result as string, 'PNG', margin - 20, margin - 20, 60, 60);
+    } catch (error) {
+      console.warn('Could not load logo:', error);
+    }
+    
+    // Header
+    pdf.setFontSize(14);
+    setFontSafe('bold');
+    pdf.text('TƯ VẤN Y TẾ AI', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 10;
+
+    pdf.setFontSize(24);
+    setFontSafe('bold');
+    pdf.text('BÁO CÁO ĐÁNH GIÁ TÂM LÝ', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    pdf.setFontSize(14);
+    setFontSafe('normal');
+    pdf.text(assessment.title, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 20;
+
+    // User Information with border
+    pdf.setFontSize(12);
+    setFontSafe('bold');
+    pdf.text('THÔNG TIN NGƯỜI THỰC HIỆN', margin, yPosition);
+    yPosition += 10;
+    
+    const testTime = new Date();
+    const userInfoLines = [
+      `Họ và tên: ${userInfo.fullName || '................................................................'}`,
+      `Tuổi: ${userInfo.age || '................................................................'}`,
+      `Giới tính: ${userInfo.gender || '................................................................'}`,
+      `Nghề nghiệp: ${userInfo.occupation || '................................................................'}`,
+      `Thông tin liên hệ: ${userInfo.contactInfo || '................................................................'}`,
+      `Ngày thực hiện: ${testTime.toLocaleDateString('vi-VN')}`,
+      `Thời gian test: ${testTime.toLocaleTimeString('vi-VN')}`
+    ];
+    
+    const userInfoHeight = userInfoLines.length * lineHeight + 10;
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.5);
+    pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), userInfoHeight);
+    
+    pdf.setFontSize(10);
+    setFontSafe('normal');
+    userInfoLines.forEach(line => {
+      pdf.text(line, margin + 5, yPosition);
+      yPosition += lineHeight;
+    });
+    yPosition += 15;
+
+    // Results with border and color coding
+    pdf.setFontSize(12);
+    setFontSafe('bold');
+    pdf.text('KẾT QUẢ ĐÁNH GIÁ', margin, yPosition);
+    yPosition += 10;
+    
+    const interpretationLines = pdf.splitTextToSize(`Diễn giải: ${interpretation.description}`, pageWidth - (margin*2) - 20);
+    const resultHeight = (2 + interpretationLines.length) * lineHeight + 15;
+    
+    pdf.setFillColor(252, 252, 252);
+    pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), resultHeight, 'F');
+    pdf.setDrawColor(150, 150, 150);
+    pdf.setLineWidth(0.4);
+    pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), resultHeight);
+    
+    pdf.setFontSize(12);
+    setFontSafe('normal');
+    pdf.text(`Tổng điểm: ${score}`, margin + 5, yPosition);
+    yPosition += lineHeight;
+    
+    const isNegativeResult = interpretation.level.toLowerCase().includes('nặng') || 
+                            interpretation.level.toLowerCase().includes('nghiêm trọng') ||
+                            interpretation.level.toLowerCase().includes('cao');
+    if (isNegativeResult) {
+      pdf.setTextColor(220, 20, 20);
+    } else {
+      pdf.setTextColor(20, 160, 20);
+    }
+    pdf.text(`Mức độ: ${interpretation.level}`, margin + 5, yPosition);
+    pdf.setTextColor(0, 0, 0);
+    
+    yPosition += lineHeight;
+    pdf.text(interpretationLines, margin + 5, yPosition);
+    yPosition += (interpretationLines.length * lineHeight) + 15;
+
+    // Recommendations with border
+    pdf.setFontSize(12);
+    setFontSafe('bold');
+    pdf.text('KHUYẾN NGHỊ', margin, yPosition);
+    yPosition += 10;
+
+    let totalRecHeight = 0;
+    const allRecLines: string[][] = [];
+    interpretation.recommendations.forEach((rec, index) => {
+      const recLines = pdf.splitTextToSize(`${index + 1}. ${rec}`, pageWidth - 2 * margin - 30);
+      allRecLines.push(recLines);
+      totalRecHeight += recLines.length * lineHeight + 5;
+    });
+    totalRecHeight += 10;
+    
+    if (yPosition + totalRecHeight > pageHeight - margin) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+    
+    pdf.setFillColor(248, 252, 255);
+    pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), totalRecHeight, 'F');
+    pdf.setDrawColor(100, 150, 200);
+    pdf.setLineWidth(0.4);
+    pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), totalRecHeight);
+    
+    pdf.setFontSize(10);
+    setFontSafe('normal');
+    allRecLines.forEach((recLines) => {
+      pdf.text(recLines, margin + 5, yPosition);
+      yPosition += recLines.length * lineHeight + 5;
+    });
+    yPosition += 15;
+
+    // Detailed Answers with table
+    if (yPosition + 50 > pageHeight - margin) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+    
+    pdf.setFontSize(12);
+    setFontSafe('bold');
+    pdf.text('CHI TIẾT CÂU TRẢ LỜI', margin, yPosition);
+    yPosition += 10;
+    setFontSafe('normal');
+
+    assessment.questions.forEach((question, index) => {
+      const answerValue = answers[question.id];
+      const questionText = `${index + 1}. ${question.text}`;
+      const questionLines = pdf.splitTextToSize(questionText, pageWidth - (margin * 2) - 30);
+      
+      const tableHeight = 25;
+      const totalHeight = questionLines.length * lineHeight + tableHeight + 15;
+      
+      if (yPosition + totalHeight > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
       }
 
-      // Helper function để set font an toàn
-      const setFontSafe = (style: 'normal' | 'bold' = 'normal') => {
-        if (useCustomFont) {
-          pdf.setFont('Roboto', style);
-        } else {
-          pdf.setFont('helvetica', style);
+      pdf.setFontSize(10);
+      setFontSafe('bold');
+      pdf.text(questionLines, margin, yPosition);
+      yPosition += questionLines.length * lineHeight + 5;
+
+      const tableStartX = margin;
+      const tableStartY = yPosition;
+      const tableWidth = pageWidth - (margin * 2);
+      const colWidth = tableWidth / question.options.length;
+      const rowHeight = 10;
+      const headerHeight = 10;
+
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(tableStartX, tableStartY, tableWidth, headerHeight, 'F');
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(tableStartX, tableStartY, tableWidth, headerHeight);
+
+      question.options.forEach((option, optIndex) => {
+        const colX = tableStartX + (optIndex * colWidth);
+        if (optIndex > 0) {
+          pdf.line(colX, tableStartY, colX, tableStartY + headerHeight + rowHeight);
         }
-      };
-
-      // Header
-      pdf.setFontSize(18);
-      setFontSafe('bold');
-      pdf.text('BÁO CÁO ĐÁNH GIÁ TÂM LÝ', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
-
-      pdf.setFontSize(14);
-      setFontSafe('normal');
-      pdf.text(assessment.title, pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 20;
-
-      // User Information với khung viền
-      pdf.setFontSize(12);
-      setFontSafe('bold');
-      pdf.text('THÔNG TIN NGƯỜI THỰC HIỆN', margin, yPosition);
-      yPosition += 10;
-      
-      const testTime = new Date();
-      const userInfoLines = [
-        `Họ và tên: ${userInfo.fullName || 'Không cung cấp'}`,
-        `Tuổi: ${userInfo.age || 'Không cung cấp'}`,
-        `Giới tính: ${userInfo.gender || 'Không cung cấp'}`,
-        `Nghề nghiệp: ${userInfo.occupation || 'Không cung cấp'}`,
-        `Thông tin liên hệ: ${userInfo.contactInfo || 'Không cung cấp'}`,
-        `Ngày thực hiện: ${testTime.toLocaleDateString('vi-VN')}`,
-        `Thời gian test: ${testTime.toLocaleTimeString('vi-VN')}`
-      ];
-      
-      // Tính chiều cao khung thông tin người dùng
-      const userInfoHeight = userInfoLines.length * lineHeight + 10;
-      
-      // Vẽ khung viền cho thông tin người dùng
-      pdf.setDrawColor(0, 0, 0); // Màu đen cho viền
-      pdf.setLineWidth(0.5);
-      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), userInfoHeight);
-      
-      pdf.setFontSize(10);
-      setFontSafe('normal');
-      userInfoLines.forEach(line => {
-        pdf.text(line, margin + 5, yPosition);
-        yPosition += lineHeight;
+        
+        pdf.setFontSize(8);
+        setFontSafe('bold');
+        const maxWidth = colWidth - 6;
+        const headerText = pdf.splitTextToSize(option.label, maxWidth);
+        const textY = tableStartY + 6;
+        const displayText = Array.isArray(headerText) ? headerText.slice(0, 1) : [headerText];
+        pdf.text(displayText, colX + 3, textY);
       });
-      yPosition += 15;
 
-      // --- PHẦN 2: KẾT QUẢ ĐÁNH GIÁ ---
-      pdf.setFontSize(12);
-      setFontSafe('bold');
-      pdf.text('KẾT QUẢ ĐÁNH GIÁ', margin, yPosition);
-      yPosition += 10;
-      
-      const interpretationLines = pdf.splitTextToSize(`Diễn giải: ${interpretation.description}`, pageWidth - (margin*2) - 10);
-      const resultHeight = (2 + interpretationLines.length) * lineHeight + 15;
-      
-      // Vẽ khung viền cho kết quả
-      pdf.setFillColor(252, 252, 252); // Màu nền rất nhạt
-      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), resultHeight, 'F');
-      pdf.setDrawColor(150, 150, 150);
-      pdf.setLineWidth(0.4);
-      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), resultHeight);
-      
-      pdf.setFontSize(10);
-      setFontSafe('normal');
-      pdf.text(`Tổng điểm: ${score}`, margin + 5, yPosition);
-      yPosition += lineHeight;
-      pdf.text(`Mức độ: ${interpretation.level}`, margin + 5, yPosition);
-      yPosition += lineHeight;
-      pdf.text(interpretationLines, margin + 5, yPosition);
-      yPosition += (interpretationLines.length * lineHeight) + 15;
+      const rowY = tableStartY + headerHeight;
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(tableStartX, rowY, tableWidth, rowHeight, 'F');
+      pdf.rect(tableStartX, rowY, tableWidth, rowHeight);
 
-      // --- PHẦN 3: KHUYẾN NGHỊ ---
-      pdf.setFontSize(12);
-      setFontSafe('bold');
-      pdf.text('KHUYẾN NGHỊ', margin, yPosition);
-      yPosition += 10;
-
-      // Tính chiều cao tổng của khuyến nghị
-      let totalRecHeight = 0;
-      const allRecLines: string[][] = [];
-      interpretation.recommendations.forEach((rec, index) => {
-        const recLines = pdf.splitTextToSize(`${index + 1}. ${rec}`, pageWidth - 2 * margin - 20);
-        allRecLines.push(recLines);
-        totalRecHeight += recLines.length * lineHeight + 5;
+      question.options.forEach((option, optIndex) => {
+        const colX = tableStartX + (optIndex * colWidth);
+        const checkboxSize = 4;
+        const checkboxX = colX + (colWidth / 2) - (checkboxSize / 2);
+        const checkboxY = rowY + (rowHeight / 2) - (checkboxSize / 2);
+        
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(checkboxX, checkboxY, checkboxSize, checkboxSize, 'FD');
+        
+        if (option.value === answerValue) {
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.8);
+          pdf.line(checkboxX, checkboxY, checkboxX + checkboxSize, checkboxY + checkboxSize);
+          pdf.line(checkboxX + checkboxSize, checkboxY, checkboxX, checkboxY + checkboxSize);
+        }
       });
-      totalRecHeight += 10; // Padding
-      
-      // Kiểm tra có cần sang trang mới không
-      if (yPosition + totalRecHeight > pageHeight - margin) {
-        pdf.addPage();
-        yPosition = margin;
-      }
-      
-      // Vẽ khung viền cho khuyến nghị
-      pdf.setFillColor(248, 252, 255); // Màu xanh rất nhạt
-      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), totalRecHeight, 'F');
-      pdf.setDrawColor(100, 150, 200);
-      pdf.setLineWidth(0.4);
-      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), totalRecHeight);
-      
-      pdf.setFontSize(10);
-      setFontSafe('normal');
-      allRecLines.forEach((recLines, index) => {
-        pdf.text(recLines, margin + 5, yPosition);
-        yPosition += recLines.length * lineHeight + 5;
-      });
-      yPosition += 15;
+      yPosition += headerHeight + rowHeight + 10;
+    });
 
-      // --- PHẦN 4: CHI TIẾT CÂU TRẢ LỜI ---
-      // Kiểm tra trang trước khi thêm phần mới
+    // Additional Notes with border
+    if (userInfo.additionalNotes) {
       if (yPosition + 50 > pageHeight - margin) {
         pdf.addPage();
         yPosition = margin;
@@ -410,111 +349,120 @@ export function PDFReportGenerator({
       
       pdf.setFontSize(12);
       setFontSafe('bold');
-      pdf.text('CHI TIẾT CÂU TRẢ LỜI', margin, yPosition);
+      pdf.text('GHI CHÚ THÊM', margin, yPosition);
       yPosition += 10;
+
+      pdf.setFontSize(10);
       setFontSafe('normal');
-
-      assessment.questions.forEach((question, index) => {
-        const answerValue = answers[question.id];
-        const selectedOption = question.options.find(opt => opt.value === answerValue);
-
-        const questionText = `${index + 1}. ${question.text}`;
-        const questionLines = pdf.splitTextToSize(questionText, pageWidth - (margin * 2) - 10);
-        
-        // Tính toán chiều cao table (header + 1 row + padding)
-        const tableHeight = 25; // Header (10) + Row (10) + Padding (5)
-        const totalHeight = questionLines.length * lineHeight + tableHeight + 15;
-        
-        // Kiểm tra xem có cần sang trang mới không
-        if (yPosition + totalHeight > pageHeight - margin) {
-            pdf.addPage();
-            yPosition = margin;
+      const notesLines = pdf.splitTextToSize(userInfo.additionalNotes, pageWidth - (margin * 2) - 20);
+      
+      const notesHeight = notesLines.length * lineHeight + 10;
+      
+      pdf.setFillColor(255, 252, 240);
+      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), notesHeight, 'F');
+      pdf.setDrawColor(200, 180, 100);
+      pdf.setLineWidth(0.4);
+      pdf.rect(margin, yPosition - 5, pageWidth - (margin * 2), notesHeight);
+      
+      notesLines.forEach((line: string) => {
+        if (yPosition > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
         }
-
-        // In câu hỏi
-        pdf.setFontSize(10);
-        setFontSafe('bold');
-        pdf.text(questionLines, margin, yPosition);
-        yPosition += questionLines.length * lineHeight + 5;
-
-        // Tạo table với các cột cho từng option
-        const tableStartX = margin;
-        const tableStartY = yPosition;
-        const tableWidth = pageWidth - (margin * 2);
-        const colWidth = tableWidth / question.options.length;
-        const rowHeight = 10;
-        const headerHeight = 10;
-
-        // Vẽ header table
-        pdf.setFillColor(240, 240, 240);
-        pdf.rect(tableStartX, tableStartY, tableWidth, headerHeight, 'F');
-        pdf.setDrawColor(0, 0, 0);
-        pdf.setLineWidth(0.3);
-        pdf.rect(tableStartX, tableStartY, tableWidth, headerHeight);
-
-        // Vẽ các cột header
-        question.options.forEach((option, optIndex) => {
-          const colX = tableStartX + (optIndex * colWidth);
-          if (optIndex > 0) {
-            pdf.line(colX, tableStartY, colX, tableStartY + headerHeight + rowHeight);
-          }
-          
-          // Text header
-          pdf.setFontSize(8);
-          setFontSafe('bold');
-          const headerText = pdf.splitTextToSize(option.label, colWidth - 4);
-          const textY = tableStartY + 6;
-          pdf.text(headerText, colX + 2, textY);
-        });
-
-        // Vẽ row cho checkbox
-        const rowY = tableStartY + headerHeight;
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(tableStartX, rowY, tableWidth, rowHeight, 'F');
-        pdf.rect(tableStartX, rowY, tableWidth, rowHeight);
-
-        // Vẽ checkbox và đánh dấu câu trả lời đã chọn
-        question.options.forEach((option, optIndex) => {
-          const colX = tableStartX + (optIndex * colWidth);
-          const checkboxSize = 4;
-          const checkboxX = colX + (colWidth / 2) - (checkboxSize / 2);
-          const checkboxY = rowY + (rowHeight / 2) - (checkboxSize / 2);
-          
-          // Vẽ checkbox
-          pdf.setFillColor(255, 255, 255);
-          pdf.rect(checkboxX, checkboxY, checkboxSize, checkboxSize, 'FD');
-          
-          // Đánh dấu X nếu là câu trả lời đã chọn
-          if (option.value === answerValue) {
-            pdf.setDrawColor(0, 0, 0);
-            pdf.setLineWidth(0.8);
-            pdf.line(checkboxX, checkboxY, checkboxX + checkboxSize, checkboxY + checkboxSize);
-            pdf.line(checkboxX + checkboxSize, checkboxY, checkboxX, checkboxY + checkboxSize);
-          }
-        });
-
-        yPosition += headerHeight + rowHeight + 10;
+        pdf.text(line, margin + 5, yPosition);
+        yPosition += lineHeight;
       });
-
-
-      // Footer
-      const footerY = pageHeight - 15;
-      pdf.setFontSize(8);
-      setFontSafe('normal');
-      pdf.text('Báo cáo này chỉ mang tính chất tham khảo. Vui lòng tham khảo ý kiến chuyên gia để có đánh giá chính xác.', 
-        pageWidth / 2, footerY, { align: 'center' });
-
-      // Save PDF
-      const fileName = `${assessment.id}_report_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
-      alert('Tạo báo cáo PDF thành công!');
-
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert(`Có lỗi xảy ra khi tạo báo cáo PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsGenerating(false);
+      yPosition += 15;
     }
+
+    // Footer
+    const footerY = pageHeight - 15;
+    pdf.setFontSize(8);
+    setFontSafe('normal');
+    const footerText = 'Báo cáo này chỉ mang tính chất tham khảo. Vui lòng tham khảo ý kiến chuyên gia để có đánh giá chính xác.';
+    const footerLines = pdf.splitTextToSize(footerText, pageWidth - (margin * 2));
+    
+    footerLines.forEach((line: string, index: number) => {
+      pdf.text(line, pageWidth / 2, footerY + (index * 5), { align: 'center' });
+    });
+
+    return pdf;
+  } catch (error) {
+    console.error('Error creating PDF:', error);
+    throw error;
+  }
+  };
+  
+  const generatePDF = async () => {
+    setIsGenerating(true)
+    try {
+      const pdfDoc = await createPDFDocument()
+      const fileName = `${assessment.id}_report_${new Date().toISOString().split('T')[0]}.pdf`
+      pdfDoc.save(fileName)
+      alert('Tạo báo cáo PDF thành công!')
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert(`Có lỗi xảy ra khi tạo báo cáo PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  // Preview PDF Modal Component
+  const PDFPreviewModal = () => {
+    if (!showPreview || !pdfBlob) return null
+
+    const pdfUrl = URL.createObjectURL(pdfBlob)
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-4 w-full h-full m-4 flex flex-col">
+          <div className="flex justify-between items-center mb-4 flex-shrink-0">
+            <h3 className="text-lg font-semibold">Xem trước báo cáo PDF</h3>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPreview(false)
+                URL.revokeObjectURL(pdfUrl)
+              }}
+            >
+              Đóng
+            </Button>
+          </div>
+          
+          <div className="flex-1 mb-4">
+            <iframe
+              src={pdfUrl}
+              className="w-full h-full border rounded"
+              title="PDF Preview"
+            />
+          </div>
+          
+          <div className="flex gap-3 justify-end flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPreview(false)
+                URL.revokeObjectURL(pdfUrl)
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={() => {
+                downloadPDF()
+                setShowPreview(false)
+                URL.revokeObjectURL(pdfUrl)
+              }}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Tải xuống
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -613,15 +561,21 @@ export function PDFReportGenerator({
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <Button
-              onClick={() => {
-                console.log('PDF button clicked')
-                generatePDF()
-              }}
+              onClick={generatePDFPreview}
+              disabled={isGenerating}
+              variant="outline"
+              className="flex-1"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              {isGenerating ? 'Đang tạo preview...' : 'Xem trước PDF'}
+            </Button>
+            <Button
+              onClick={generatePDF}
               disabled={isGenerating}
               className="flex-1"
             >
               <Download className="h-4 w-4 mr-2" />
-              {isGenerating ? 'Đang tạo PDF...' : 'Tải xuống báo cáo PDF'}
+              {isGenerating ? 'Đang tạo PDF...' : 'Tải xuống PDF'}
             </Button>
             <Button
               variant="outline"
@@ -633,6 +587,7 @@ export function PDFReportGenerator({
           </div>
         </CardContent>
       </Card>
+      <PDFPreviewModal />
     </div>
   )
 }
