@@ -1,0 +1,838 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+import { Mic, Volume2, Pause, Play, Square, ArrowLeft, MessageCircle, Camera, Upload, X, Image as ImageIcon } from 'lucide-react'
+import Link from 'next/link'
+
+interface Message {
+  id: string
+  content: string
+  isUser: boolean
+  timestamp: Date
+  imageBase64?: string
+}
+
+export default function SpeechChatPage() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState<string | null>(null)
+  const [isPausedAudio, setIsPausedAudio] = useState<string | null>(null)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([])
+  const [autoPlayResponse, setAutoPlayResponse] = useState(true)
+  const [useOptimizedAPI, setUseOptimizedAPI] = useState(true)
+  const [lastChunkingInfo, setLastChunkingInfo] = useState<any>(null)
+  
+  // Camera and Image states
+  const [showCamera, setShowCamera] = useState(false)
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
+  const [isCapturing, setIsCapturing] = useState(false)
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [cameraStream])
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      
+      // Determine the best supported audio format
+      let mimeType = 'audio/webm'
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus'
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus'
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4'
+      }
+      
+      const recorder = new MediaRecorder(stream, { mimeType })
+      const chunks: Blob[] = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data)
+        }
+      }
+
+      recorder.onstop = async () => {
+        // Use the actual recorded MIME type, not force it to wav
+        const audioBlob = new Blob(chunks, { type: mimeType })
+        
+        // If there's a captured image, use the vision API path
+        if (capturedImage) {
+          await handleSpeechToTextWithImage(audioBlob)
+        } else if (useOptimizedAPI) {
+          await handleOptimizedSpeechChat(audioBlob)
+        } else {
+          await handleSpeechToText(audioBlob)
+        }
+        
+        // Dừng tất cả tracks để tắt microphone
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      setMediaRecorder(recorder)
+      setAudioChunks(chunks)
+      setIsRecording(true)
+      recorder.start()
+    } catch (error) {
+      console.error('Error starting recording:', error)
+      alert('Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.')
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop()
+      setIsRecording(false)
+    }
+  }
+
+  const handleOptimizedSpeechChat = async (audioBlob: Blob) => {
+    try {
+      setIsLoading(true)
+      
+      const formData = new FormData()
+      formData.append('audio_file', audioBlob, 'recording.wav')
+      formData.append('context', 'health consultation')
+      formData.append('conversation_history', JSON.stringify(messages.map(msg => ({
+        role: msg.isUser ? 'user' : 'assistant',
+        content: msg.content
+      }))))
+      formData.append('use_optimized', 'true')
+
+      const response = await fetch('/api/speech-chat', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.user_text && data.ai_response) {
+        // Lưu thông tin chunking nếu có
+        if (data.chunking_used) {
+          setLastChunkingInfo(data.chunking_used)
+        }
+        
+        // Thêm tin nhắn của user
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: data.user_text,
+          isUser: true,
+          timestamp: new Date()
+        }
+        
+        // Thêm tin nhắn của AI
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: data.ai_response,
+          isUser: false,
+          timestamp: new Date()
+        }
+        
+        setMessages(prev => [...prev, userMessage, aiMessage])
+        
+        // Tự động phát âm thanh phản hồi nếu có và được bật
+        if (autoPlayResponse && data.audio_url) {
+          console.log('Audio URL received:', data.audio_url)
+          setTimeout(() => {
+            handleTextToSpeechFromUrl(aiMessage.id, data.audio_url)
+          }, 500)
+        }
+      } else {
+        console.error('Speech-chat error:', data.error)
+        alert(`Có lỗi xảy ra: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error processing speech-chat:', error)
+      alert('Có lỗi xảy ra khi xử lý âm thanh.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSpeechToTextWithImage = async (audioBlob: Blob) => {
+    try {
+      setIsLoading(true)
+      
+      // First, convert speech to text
+      const formData = new FormData()
+      formData.append('audio_file', audioBlob, 'recording.wav')
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.text) {
+        // Thêm tin nhắn của user với ảnh
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: data.text,
+          isUser: true,
+          timestamp: new Date(),
+          imageBase64: capturedImage || undefined
+        }
+        
+        setMessages(prev => [...prev, userMessage])
+        
+        // Gửi tin nhắn đến AI với vision API
+        if (capturedImage) {
+          try {
+            const aiResponse = await sendImageWithText(data.text, capturedImage)
+            
+            const aiMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              content: aiResponse,
+              isUser: false,
+              timestamp: new Date()
+            }
+            
+            setMessages(prev => [...prev, aiMessage])
+            
+            // Clear captured image after sending
+            clearCapturedImage()
+            
+            // Auto-play response if enabled
+            if (autoPlayResponse) {
+              setTimeout(() => {
+                handleTextToSpeech(aiMessage.id, aiResponse)
+              }, 500)
+            }
+          } catch (error) {
+            console.error('Error with vision API:', error)
+            alert('Có lỗi xảy ra khi xử lý ảnh và văn bản.')
+          }
+        }
+      } else {
+        console.error('Speech-to-text error:', data.error)
+        alert('Không thể chuyển đổi giọng nói thành văn bản. Vui lòng thử lại.')
+      }
+    } catch (error) {
+      console.error('Error processing speech-to-text with image:', error)
+      alert('Có lỗi xảy ra khi xử lý âm thanh và ảnh.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSpeechToText = async (audioBlob: Blob) => {
+    try {
+      setIsLoading(true)
+      
+      const formData = new FormData()
+      formData.append('audio_file', audioBlob, 'recording.wav')
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.text) {
+        // Thêm tin nhắn của user
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: data.text,
+          isUser: true,
+          timestamp: new Date(),
+          imageBase64: capturedImage || undefined
+        }
+        
+        setMessages(prev => [...prev, userMessage])
+        
+        // Gửi tin nhắn đến AI (với image nếu có)
+        await sendToAI(data.text, capturedImage || undefined)
+        
+        // Clear captured image after sending
+        if (capturedImage) {
+          clearCapturedImage()
+        }
+      } else {
+        console.error('Speech-to-text error:', data.error)
+        alert('Không thể chuyển đổi giọng nói thành văn bản. Vui lòng thử lại.')
+      }
+    } catch (error) {
+      console.error('Error processing speech-to-text:', error)
+      alert('Có lỗi xảy ra khi xử lý âm thanh.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const sendToAI = async (userInput: string, imageBase64?: string) => {
+    try {
+      let aiResponse: string
+
+      if (imageBase64) {
+        // Use vision API for image + text
+        aiResponse = await sendImageWithText(userInput, imageBase64)
+      } else {
+        // Use regular text API
+        const response = await fetch('/api/llm-chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: userInput,
+            context: 'health consultation',
+            conversationHistory: messages.map(msg => ({
+              role: msg.isUser ? 'user' : 'assistant',
+              content: msg.content
+            }))
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to get AI response')
+        }
+
+        const data = await response.json()
+        aiResponse = data.response || 'Xin lỗi, tôi không thể trả lời câu hỏi này.'
+      }
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: aiResponse,
+        isUser: false,
+        timestamp: new Date()
+      }
+
+      setMessages(prev => [...prev, aiMessage])
+
+      // Tự động phát âm thanh phản hồi nếu được bật
+      if (autoPlayResponse) {
+        setTimeout(() => {
+          handleTextToSpeech(aiMessage.id, aiResponse)
+        }, 500)
+      }
+
+    } catch (error) {
+      console.error('Error sending to AI:', error)
+      alert('Có lỗi xảy ra khi gửi tin nhắn.')
+    }
+  }
+
+  const handleTextToSpeechFromUrl = async (messageId: string, audioUrl: string) => {
+    try {
+      console.log('Playing audio from URL:', audioUrl)
+      
+      // Dừng audio hiện tại nếu có
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+
+      setIsPlayingAudio(messageId)
+      setIsPausedAudio(null)
+
+      const audio = new Audio(audioUrl)
+      audioRef.current = audio
+
+      audio.onended = () => {
+        setIsPlayingAudio(null)
+        setIsPausedAudio(null)
+      }
+
+      audio.onerror = () => {
+        setIsPlayingAudio(null)
+        setIsPausedAudio(null)
+        console.error('Error playing audio')
+      }
+
+      await audio.play()
+    } catch (error) {
+      console.error('Error playing audio from URL:', error)
+      setIsPlayingAudio(null)
+    }
+  }
+
+  const handleTextToSpeech = async (messageId: string, text: string) => {
+    try {
+      // Dừng audio hiện tại nếu có
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
+
+      setIsPlayingAudio(messageId)
+      setIsPausedAudio(null)
+
+      const response = await fetch('/api/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          lang: 'vi'
+        }),
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.audio_url) {
+        const audio = new Audio(data.audio_url)
+        audioRef.current = audio
+
+        audio.onended = () => {
+          setIsPlayingAudio(null)
+          setIsPausedAudio(null)
+        }
+
+        audio.onerror = () => {
+          setIsPlayingAudio(null)
+          setIsPausedAudio(null)
+          console.error('Error playing audio')
+        }
+
+        await audio.play()
+      }
+    } catch (error) {
+      console.error('Error with text-to-speech:', error)
+      setIsPlayingAudio(null)
+    }
+  }
+
+  const handlePauseAudio = (messageId: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      setIsPlayingAudio(null)
+      setIsPausedAudio(messageId)
+    }
+  }
+
+  const handleResumeAudio = (messageId: string) => {
+    if (audioRef.current) {
+      audioRef.current.play()
+      setIsPlayingAudio(messageId)
+      setIsPausedAudio(null)
+    }
+  }
+
+  const handleStopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setIsPlayingAudio(null)
+    setIsPausedAudio(null)
+  }
+
+  // Camera and Image handling functions
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      })
+      setCameraStream(stream)
+      setShowCamera(true)
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      alert('Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập.')
+    }
+  }
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop())
+      setCameraStream(null)
+    }
+    setShowCamera(false)
+    setCapturedImage(null)
+  }
+
+  const captureImage = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(video, 0, 0)
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        setCapturedImage(imageDataUrl)
+        setIsCapturing(true)
+        stopCamera()
+      }
+    }
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setCapturedImage(result)
+        setIsCapturing(true)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const clearCapturedImage = () => {
+    setCapturedImage(null)
+    setIsCapturing(false)
+  }
+
+  const sendImageWithText = async (text: string, imageBase64: string) => {
+    try {
+      const response = await fetch('http://localhost:8000/v1/vision-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          image_base64: imageBase64.split(',')[1], // Remove data:image/jpeg;base64, prefix
+          temperature: 0.7,
+          max_tokens: 1000
+        }),
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        return data.response
+      } else {
+        throw new Error(data.error || 'Vision API error')
+      }
+    } catch (error) {
+      console.error('Error with vision chat:', error)
+      throw error
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              </Link>
+              <div className="flex items-center space-x-2">
+                <MessageCircle className="h-6 w-6 text-blue-600" />
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Trò chuyện bằng giọng nói
+                </h1>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={autoPlayResponse}
+                  onChange={(e) => setAutoPlayResponse(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Tự động phát phản hồi</span>
+              </label>
+              
+              <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={useOptimizedAPI}
+                  onChange={(e) => setUseOptimizedAPI(e.target.checked)}
+                  className="rounded"
+                />
+                <span>API tối ưu</span>
+              </label>
+            </div>
+          </div>
+          
+          {/* Chunking Info */}
+          {lastChunkingInfo && (
+            <div className="max-w-4xl mx-auto px-4 py-2">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2 text-sm text-green-700 dark:text-green-300">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="font-medium">Tối ưu hóa đã được áp dụng:</span>
+                  <span>
+                    STT: {lastChunkingInfo.speech_to_text ? '✓' : '✗'} | 
+                    TTS: {lastChunkingInfo.text_to_speech ? '✓' : '✗'}
+                    {lastChunkingInfo.chunks_processed && ` | ${lastChunkingInfo.chunks_processed} đoạn`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Chat Messages */}
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="space-y-6 mb-6">
+          {messages.length === 0 ? (
+            <div className="text-center py-12">
+              <Mic className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                Bắt đầu trò chuyện bằng giọng nói
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400">
+                Nhấn nút microphone để bắt đầu ghi âm câu hỏi của bạn
+              </p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
+                    message.isUser
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-md'
+                  }`}
+                >
+                  {/* Display image if present */}
+                  {message.imageBase64 && (
+                    <div className="mb-2">
+                      <img 
+                        src={message.imageBase64} 
+                        alt="Uploaded image" 
+                        className="max-w-full h-auto rounded-lg"
+                        style={{ maxHeight: '200px' }}
+                      />
+                    </div>
+                  )}
+                  
+                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  
+                  {!message.isUser && (
+                    <div className="flex justify-end mt-2 space-x-1">
+                      {/* Audio Control Buttons */}
+                      {isPlayingAudio === message.id ? (
+                        <button
+                          onClick={() => handlePauseAudio(message.id)}
+                          className="p-1 rounded-full bg-blue-500 text-white transition-colors duration-200 hover:bg-blue-600"
+                          title="Tạm dừng"
+                        >
+                          <Pause className="h-3 w-3" />
+                        </button>
+                      ) : isPausedAudio === message.id ? (
+                        <button
+                          onClick={() => handleResumeAudio(message.id)}
+                          className="p-1 rounded-full bg-green-500 text-white transition-colors duration-200 hover:bg-green-600"
+                          title="Tiếp tục"
+                        >
+                          <Play className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTextToSpeech(message.id, message.content)}
+                          className="p-1 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors duration-200"
+                          title="Nghe tin nhắn"
+                        >
+                          <Volume2 className="h-3 w-3" />
+                        </button>
+                      )}
+                      
+                      {/* Stop Button */}
+                      {(isPlayingAudio === message.id || isPausedAudio === message.id) && (
+                        <button
+                          onClick={handleStopAudio}
+                          className="p-1 rounded-full bg-red-500 text-white transition-colors duration-200 hover:bg-red-600"
+                          title="Dừng"
+                        >
+                          <Square className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+          
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white dark:bg-gray-700 rounded-2xl px-4 py-3 shadow-md">
+                <div className="flex items-center space-x-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Đang xử lý...</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Control Buttons */}
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2">
+        <div className="flex items-center space-x-4">
+          {/* Camera Button */}
+          <button
+            onClick={startCamera}
+            disabled={isLoading || isRecording}
+            className="w-12 h-12 rounded-full bg-green-600 text-white hover:bg-green-700 shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            title="Chụp ảnh"
+          >
+            <Camera className="h-6 w-6 mx-auto" />
+          </button>
+
+          {/* Upload Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isRecording}
+            className="w-12 h-12 rounded-full bg-purple-600 text-white hover:bg-purple-700 shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            title="Tải ảnh lên"
+          >
+            <Upload className="h-6 w-6 mx-auto" />
+          </button>
+
+          {/* Recording Button */}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isLoading}
+            className={`w-16 h-16 rounded-full shadow-lg transition-all duration-200 ${
+              isRecording
+                ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            } disabled:opacity-50 disabled:cursor-not-allowed active:scale-95`}
+            title={isRecording ? 'Dừng ghi âm' : 'Bắt đầu ghi âm'}
+          >
+            <Mic className="h-8 w-8 mx-auto" />
+          </button>
+        </div>
+        
+        {isRecording && (
+          <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
+            <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+              Đang ghi âm...
+            </div>
+          </div>
+        )}
+
+        {/* Captured Image Preview */}
+        {capturedImage && (
+          <div className="absolute -top-32 left-1/2 transform -translate-x-1/2">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-2 shadow-lg border">
+              <div className="relative">
+                <img 
+                  src={capturedImage} 
+                  alt="Captured" 
+                  className="w-24 h-24 object-cover rounded"
+                />
+                <button
+                  onClick={clearCapturedImage}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                  title="Xóa ảnh"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+              <p className="text-xs text-center mt-1 text-gray-600 dark:text-gray-300">
+                Ảnh đã chụp
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Hidden File Input */}
+       <input
+         ref={fileInputRef}
+         type="file"
+         accept="image/*"
+         onChange={handleFileUpload}
+         className="hidden"
+       />
+
+       {/* Camera Modal */}
+       {showCamera && (
+         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 max-w-md w-full mx-4">
+             <div className="flex justify-between items-center mb-4">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                 Chụp ảnh
+               </h3>
+               <button
+                 onClick={stopCamera}
+                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+               >
+                 <X className="h-6 w-6" />
+               </button>
+             </div>
+             
+             <div className="relative">
+               <video
+                 ref={videoRef}
+                 autoPlay
+                 playsInline
+                 className="w-full h-64 bg-black rounded-lg object-cover"
+               />
+               
+               <div className="flex justify-center mt-4 space-x-4">
+                 <button
+                   onClick={captureImage}
+                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                 >
+                   <Camera className="h-5 w-5 inline mr-2" />
+                   Chụp ảnh
+                 </button>
+                 
+                 <button
+                   onClick={stopCamera}
+                   className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200"
+                 >
+                   Hủy
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Hidden Canvas for Image Capture */}
+       <canvas ref={canvasRef} className="hidden" />
+     </div>
+   )
+}

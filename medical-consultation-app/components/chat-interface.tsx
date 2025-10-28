@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, AlertTriangle, Bot, User, Sparkles } from "lucide-react"
+import { Send, AlertTriangle, Bot, User, Sparkles, Volume2, Pause, Play, Square, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -27,7 +27,13 @@ export function ChatInterface() {
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState<string | null>(null)
+  const [isPausedAudio, setIsPausedAudio] = useState<string | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Smart suggestion system based on context and conversation history
   const getSmartSuggestions = () => {
@@ -134,11 +140,24 @@ export function ChatInterface() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to get AI response")
+        const errorText = await response.text()
+        console.error("API Error:", errorText)
+        throw new Error(`Failed to get AI response: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json()
-      const aiResponse = data.response || parseModelResponse(data.generated_text || data.response)
+      let data
+      try {
+        const responseText = await response.text()
+        if (!responseText || responseText.trim() === '') {
+          throw new Error("Empty response from API")
+        }
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error("JSON parsing error in frontend:", parseError)
+        throw new Error("Invalid response format from server")
+      }
+
+      const aiResponse = data.response || parseModelResponse(data.generated_text || data.response || "")
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -163,6 +182,158 @@ export function ChatInterface() {
       setIsLoading(false)
     }
   }
+
+  const handleTextToSpeech = async (messageId: string, text: string) => {
+    try {
+      // Nếu đang phát audio khác, dừng lại
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause()
+        setIsPlayingAudio(null)
+        setIsPausedAudio(null)
+      }
+
+      setIsPlayingAudio(messageId)
+
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: text,
+          lang: "vi"
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate audio: ${response.status}`)
+      }
+
+      const data = await response.json()
+      
+      if (data.audio_url) {
+        const audio = new Audio(data.audio_url)
+        audioRef.current = audio
+        
+        audio.onended = () => {
+          setIsPlayingAudio(null)
+          setIsPausedAudio(null)
+          audioRef.current = null
+        }
+        
+        audio.onerror = () => {
+          setIsPlayingAudio(null)
+          setIsPausedAudio(null)
+          audioRef.current = null
+        }
+        
+        await audio.play()
+      }
+    } catch (error) {
+      console.error("Error playing audio:", error)
+      setIsPlayingAudio(null)
+      setIsPausedAudio(null)
+    }
+  }
+
+  const handlePauseAudio = (messageId: string) => {
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause()
+      setIsPlayingAudio(null)
+      setIsPausedAudio(messageId)
+    }
+  }
+
+  const handleResumeAudio = (messageId: string) => {
+    if (audioRef.current && audioRef.current.paused) {
+      audioRef.current.play()
+      setIsPlayingAudio(messageId)
+      setIsPausedAudio(null)
+    }
+  }
+
+  const handleStopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    setIsPlayingAudio(null)
+    setIsPausedAudio(null)
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Determine the best supported audio format
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
+      
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        // Use the actual recorded MIME type, not force it to wav
+        const audioBlob = new Blob(chunks, { type: mimeType });
+        await handleSpeechToText(audioBlob);
+        
+        // Dừng tất cả tracks để tắt microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      setIsRecording(true);
+      recorder.start();
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleSpeechToText = async (audioBlob: Blob) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio_file', audioBlob, 'recording.wav');
+
+      const response = await fetch('/api/speech-to-text', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.text) {
+        setInput(data.text);
+      } else {
+        console.error('Speech-to-text error:', data.error);
+        alert('Không thể chuyển đổi giọng nói thành văn bản. Vui lòng thử lại.');
+      }
+    } catch (error) {
+      console.error('Error processing speech-to-text:', error);
+      alert('Có lỗi xảy ra khi xử lý âm thanh.');
+    }
+  };
 
   const handleSuggestedQuestion = (question: string) => {
     setInput(question)
@@ -218,6 +389,47 @@ export function ChatInterface() {
               <p className="text-sm whitespace-pre-wrap">
                 {message.content}
               </p>
+              {!message.isUser && (
+                <div className="flex justify-end mt-2 space-x-1">
+                  {/* Nút Play/Pause */}
+                  {isPlayingAudio === message.id ? (
+                    <button
+                      onClick={() => handlePauseAudio(message.id)}
+                      className="p-1 rounded-full bg-blue-500 text-white transition-colors duration-200 hover:bg-blue-600"
+                      title="Tạm dừng"
+                    >
+                      <Pause className="h-3 w-3" />
+                    </button>
+                  ) : isPausedAudio === message.id ? (
+                    <button
+                      onClick={() => handleResumeAudio(message.id)}
+                      className="p-1 rounded-full bg-green-500 text-white transition-colors duration-200 hover:bg-green-600"
+                      title="Tiếp tục"
+                    >
+                      <Play className="h-3 w-3" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleTextToSpeech(message.id, message.content)}
+                      className="p-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors duration-200"
+                      title="Nghe tin nhắn"
+                    >
+                      <Volume2 className="h-3 w-3" />
+                    </button>
+                  )}
+                  
+                  {/* Nút Stop - chỉ hiện khi đang phát hoặc tạm dừng */}
+                  {(isPlayingAudio === message.id || isPausedAudio === message.id) && (
+                    <button
+                      onClick={handleStopAudio}
+                      className="p-1 rounded-full bg-red-500 text-white transition-colors duration-200 hover:bg-red-600"
+                      title="Dừng"
+                    >
+                      <Square className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {message.isUser && (
@@ -285,7 +497,27 @@ export function ChatInterface() {
             style={{ 
               WebkitTapHighlightColor: 'transparent'
             }}
+            disabled={isLoading}
           />
+          
+          {/* Nút ghi âm */}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isLoading}
+            className={`px-3 py-3 rounded-2xl transition-all duration-200 shadow-md active:scale-95 ${
+              isRecording
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={isRecording ? 'Dừng ghi âm' : 'Bắt đầu ghi âm'}
+            style={{ 
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation'
+            }}
+          >
+            <Mic className={`h-4 w-4 ${isRecording ? 'animate-pulse' : ''}`} />
+          </button>
+          
           <button
             onClick={handleSubmit}
             disabled={!input.trim() || isLoading}

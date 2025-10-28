@@ -27,7 +27,17 @@ yarn-error.log*
 next-env.d.ts
 
 # memory bank
-../memory-bank/
+/memory-bank/
 
 #tài liệu
-../doc/
+/doc/
+
+#mô hình ngôn ngữ lớn
+/models/
+
+#notebook
+/model/
+
+# môi trường ảo
+/venv/
+/.venv/

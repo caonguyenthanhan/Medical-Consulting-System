@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { MessageCircle, Search, ClipboardList, Heart, Shield, Users, Sparkles } from "lucide-react"
+import { MessageCircle, Search, ClipboardList, Heart, Shield, Users, Sparkles, Mic } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChatInterface } from "@/components/chat-interface"
@@ -179,6 +180,26 @@ function HomePage({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void }) 
             </div>
           </div>
         </Card>
+
+        <Link href="/speech-chat">
+          <Card 
+            className="p-5 cursor-pointer hover:shadow-lg transition-all duration-200 bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200 rounded-2xl active:scale-95"
+            style={{ 
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation'
+            }}
+          >
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
+                <Mic className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 text-base mb-1">Trò chuyện bằng giọng nói</h3>
+                <p className="text-sm text-gray-600">Giao tiếp hoàn toàn bằng âm thanh</p>
+              </div>
+            </div>
+          </Card>
+        </Link>
       </div>
 
       {/* Stats Section */}

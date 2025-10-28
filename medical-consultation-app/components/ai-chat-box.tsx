@@ -5,7 +5,8 @@ import { Send, Bot, User, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-// Removed llm-config import as we now use Gemini API directly
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface Message {
   id: string
@@ -51,22 +52,27 @@ export function AiChatBox({
     setIsLoading(true)
 
     try {
-      // Prepare conversation history for context
       const conversationHistory = messages.map(msg => ({
         role: msg.isUser ? 'user' : 'assistant',
-        content: msg.content
+        content: msg.content,
       }))
 
-      // Call Gemini API through our backend
-      const response = await fetch("/api/llm-chat", {
+      const chatMessages = [
+        ...(context ? [{ role: 'system', content: context }] : []),
+        ...conversationHistory,
+        { role: 'user', content: userMessage.content },
+      ]
+
+      const response = await fetch("http://127.0.0.1:8000/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          question: inputValue,
-          context: context,
-          conversationHistory: conversationHistory,
+          model: "local-llama",
+          messages: chatMessages,
+          temperature: 0.7,
+          max_tokens: 1024,
         }),
       })
 
@@ -75,7 +81,7 @@ export function AiChatBox({
       }
 
       const data = await response.json()
-      const aiResponse = data.response
+      const aiResponse = data?.choices?.[0]?.message?.content || data?.response || ""
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -88,7 +94,6 @@ export function AiChatBox({
     } catch (error) {
       console.error("Error getting AI response:", error)
 
-      // Fallback response
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau hoặc tham khảo ý kiến bác sĩ chuyên khoa.",
@@ -114,7 +119,13 @@ export function AiChatBox({
             )}
             <Card className={`max-w-[80%] ${message.isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
               <CardContent className="p-2">
-                <p className="text-sm">{message.content}</p>
+                {message.isUser ? (
+                  <p className="text-sm">{message.content}</p>
+                ) : (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm prose prose-sm dark:prose-invert">
+                    {message.content}
+                  </ReactMarkdown>
+                )}
                 <p
                   className={`text-xs mt-1 opacity-70 ${message.isUser ? "text-primary-foreground" : "text-muted-foreground"}`}
                 >
