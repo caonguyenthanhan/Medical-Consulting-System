@@ -36,7 +36,9 @@ Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra 
 ![Fallback Mechanism](screenshots/fallback-mechanism.png)
 *Sơ đồ luồng xử lý lỗi và cơ chế tự động chuyển đổi giữa GPU (Cloud) và CPU (Local)*
 
-## �🛠️ Công Nghệ Sử Dụng
+> 📘 **Chi tiết kỹ thuật**: Xem sơ đồ kiến trúc hệ thống đầy đủ tại [docs/system-architecture.md](docs/system-architecture.md).
+
+## 🛠️ Công Nghệ Sử Dụng
 
 ### Frontend
 - **Framework**: Next.js 14 (App Router)
