@@ -6,4 +6,5 @@
 - **Tài liệu hóa**:
   - Viết lại `README.md` chuyên nghiệp với hướng dẫn cài đặt Frontend/Backend và kết nối Colab.
   - Tạo `requirements.txt` chuẩn cho Backend từ mã nguồn thực tế.
+  - **Cập nhật mới**: Bổ sung sơ đồ kiến trúc hệ thống (`screenshots/AI-Healthcare-Advisory.png`) vào `README.md` và chi tiết hóa Mermaid Chart trong `docs/system-architecture.md`.
 - **Trạng thái**: Dự án đã sẵn sàng đóng gói và push lên GitHub.
