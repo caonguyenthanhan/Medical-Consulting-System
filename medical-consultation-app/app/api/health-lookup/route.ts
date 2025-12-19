@@ -1,0 +1,30 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function POST(request: NextRequest) {
+  try {
+    const { query, mode, conversation_id, user_id } = await request.json()
+    const auth = request.headers.get('authorization') || ''
+
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      return NextResponse.json({ error: 'Thiếu tham số query' }, { status: 400 })
+    }
+
+    const fastApiUrl = process.env.INTERNAL_HEALTH_LOOKUP_URL || 'http://127.0.0.1:8000/v1/health-lookup'
+    const resp = await fetch(fastApiUrl, {
+      method: 'POST',
+      headers: auth ? { 'Content-Type': 'application/json', 'Authorization': auth } : { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, mode, conversation_id, user_id })
+    })
+
+    const data = await resp.json()
+    if (!resp.ok) {
+      console.error('Health lookup server error:', data)
+      return NextResponse.json({ error: 'Lỗi máy chủ tra cứu y khoa' }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } catch (e: any) {
+    console.error('Error in /api/health-lookup:', e?.message || e)
+    return NextResponse.json({ error: 'Lỗi xử lý yêu cầu tra cứu y khoa' }, { status: 500 })
+  }
+}

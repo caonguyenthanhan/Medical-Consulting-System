@@ -1,63 +1,102 @@
-Ứng dụng mô hình Llama vào xây dựng hệ thống tư vấn y tế
+# Hệ thống Tư vấn Y tế AI (Medical Consulting System)
 
-1. Giới thiệu
-   Dự án này là một luận văn tốt nghiệp, tập trung vào việc phát triển một hệ thống tư vấn y tế thông minh. Ứng dụng sử dụng sức mạnh của các mô hình ngôn ngữ lớn (LLM), đặc biệt là mô hình Llama của Meta AI, để cung cấp cho người dùng các chức năng tra cứu thông tin y khoa, sàng lọc ban đầu về các vấn đề tâm lý, và đề xuất các liệu pháp hoặc sản phẩm phù hợp.
+Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra cứu thông tin sức khỏe, sàng lọc tâm lý và tư vấn sơ bộ dựa trên kiến trúc Hybrid AI (kết hợp xử lý CPU cục bộ và GPU đám mây).
 
-Mục tiêu chính là tạo ra một công cụ hỗ trợ sức khỏe dễ tiếp cận, giúp người dùng chủ động hơn trong việc tìm kiếm thông tin và quản lý sức khỏe cá nhân, đặc biệt là trong bối cảnh các dịch vụ y tế chuyên sâu còn nhiều hạn chế.
+## 🚀 Tính Năng Nổi Bật
 
-2. Các tính năng chính
-   Dự án này tích hợp ba tính năng cốt lõi, được xây dựng dựa trên mô hình Llama đã được tinh chỉnh (fine-tuning) trên dữ liệu y tế tiếng Việt:
+- **Tư vấn đa phương thức**: Hỗ trợ chat văn bản, giọng nói (Speech-to-Text/Text-to-Speech) và hình ảnh (Vision).
+- **Kiến trúc Hybrid Linh hoạt**:
+  - **Chế độ CPU (Local)**: Chạy nhẹ nhàng trên máy cá nhân cho các tác vụ cơ bản.
+  - **Chế độ GPU (Cloud)**: Tự động chuyển tải sang Google Colab/GPU Server cho các mô hình nặng (RAG, Vision, TTS chất lượng cao).
+- **RAG (Retrieval-Augmented Generation)**: Tra cứu thông tin y khoa chính xác từ cơ sở dữ liệu vector (ChromaDB) để giảm ảo giác AI.
+- **Sàng lọc Tâm lý**: Tích hợp các bài test chuẩn y khoa (PHQ-9, GAD-7) để đánh giá sức khỏe tinh thần.
+- **Chế độ Offline**: Tự động chuyển về xử lý cục bộ khi mất kết nối Internet hoặc Server GPU.
 
-2.1. Trò chuyện và tư vấn sức khỏe
-Tư vấn tổng quát: Người dùng có thể trò chuyện với mô hình để mô tả các triệu chứng, đặt câu hỏi về các bệnh lý phổ biến hoặc dược phẩm. Mô hình sẽ đưa ra các giải đáp một cách dễ hiểu và mang tính tham khảo.
+## 🛠️ Công Nghệ Sử Dụng
 
-Disclaimer: Luôn hiển thị thông báo rõ ràng rằng đây là công cụ hỗ trợ, không thể thay thế cho chẩn đoán và lời khuyên của bác sĩ chuyên nghiệp.
+### Frontend
+- **Framework**: Next.js 14 (App Router)
+- **UI Library**: Shadcn/UI, Tailwind CSS
+- **State Management**: React Hooks, Server Actions
 
-2.2. Công cụ sàng lọc ban đầu về tâm lý
-Sàng lọc thông minh: Dựa trên các tiêu chuẩn y khoa như thang đo PHQ-9 (trầm cảm) và GAD-7 (lo âu), hệ thống có thể nhận diện các dấu hiệu lo âu hoặc trầm cảm từ câu chữ của người dùng và chủ động đưa ra các câu hỏi sàng lọc.
+### Backend
+- **Framework**: FastAPI (Python)
+- **AI Engine**: Llama.cpp (Local LLM), Transformers (HuggingFace)
+- **Vector DB**: ChromaDB
+- **Speech**: gTTS (Google TTS), SpeechRecognition
+- **Connectivity**: Ngrok (Tunneling cho Colab)
 
-Giao diện trực quan: Các câu hỏi sàng lọc được hiển thị dưới dạng khảo sát đơn giản, giúp người dùng dễ dàng đánh giá tình trạng của mình.
+## 📦 Cài Đặt & Chạy Dự Án
 
-2.3. Hệ thống đề xuất liệu pháp và sản phẩm
-Đề xuất cá nhân hóa: Dựa trên các triệu chứng hoặc kết quả sàng lọc, hệ thống sẽ đưa ra các đề xuất về liệu pháp không xâm lấn (ví dụ: thiền, yoga, liệu pháp nhận thức hành vi) hoặc các sản phẩm không kê đơn (ví dụ: vitamin, trà thảo dược) để cải thiện sức khỏe.
+### Yêu Cầu Tiên Quyết
+- **Node.js**: v18 trở lên
+- **Python**: 3.10 trở lên
+- **Trình duyệt**: Chrome/Edge/Firefox mới nhất
 
-Cảnh báo an toàn: Các đề xuất này luôn đi kèm với lời khuyên nên tham khảo ý kiến bác sĩ hoặc chuyên gia trước khi áp dụng.
+### 1. Cài đặt Backend (Local Server)
 
-3. Công nghệ sử dụng
-   Mô hình nền tảng: Llama (phiên bản Llama-2 hoặc Llama-3).
+```bash
+# Tại thư mục gốc của dự án
+pip install -r requirements.txt
+```
 
-Kỹ thuật chính:
+### 2. Cài đặt Frontend
 
-Fine-tuning: Tinh chỉnh mô hình Llama trên các bộ dữ liệu y tế tiếng Việt để nâng cao độ chính xác và khả năng hiểu ngữ cảnh chuyên ngành.
+```bash
+cd medical-consultation-app
+npm install
+```
 
-Data Augmentation: Sử dụng các LLM khác (ví dụ: Gemini) để tạo ra dữ liệu hội thoại tổng hợp, giúp tăng cường hiệu quả huấn luyện.
+## 🚀 Hướng Dẫn Chạy
 
-Dữ liệu huấn luyện:
+### Bước 1: Khởi chạy Backend (Local API)
+Mở một terminal tại thư mục gốc và chạy:
 
-Các bộ dữ liệu y tế tiếng Việt công khai trên Hugging Face và Kaggle.
+```bash
+python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload
+```
+*Server sẽ chạy tại: `http://127.0.0.1:8000`*
 
-Dữ liệu về sàng lọc tâm lý như phamxuankhoa/mental\_health.
+### Bước 2: Khởi chạy Frontend
+Mở một terminal khác tại thư mục `medical-consultation-app` và chạy:
 
-Framework và Thư viện:
+```bash
+cd medical-consultation-app
+npm run dev
+```
+*Truy cập ứng dụng tại: `http://localhost:3000`*
 
-Hugging Face Transformers: Để tải, tinh chỉnh và sử dụng mô hình Llama.
+### Bước 3: Kết nối GPU Server (Tùy chọn - Khuyên dùng)
+Để sử dụng các tính năng nâng cao (RAG, Vision, TTS xịn):
+1. Upload thư mục `DB_ALL` và notebook `server_AI_MCS.ipynb` lên Google Drive.
+2. Mở notebook trên Google Colab, kết nối GPU (T4).
+3. Chạy các cell để khởi động server và lấy **Ngrok URL**.
+4. Cập nhật URL vào file `medical-consultation-app/data/runtime-mode.json` hoặc nhập trực tiếp trên giao diện Web.
 
-Python: Ngôn ngữ lập trình chính.
+## 📂 Cấu Trúc Thư Mục
 
-PyTorch/TensorFlow: Các framework học sâu.
+```
+medical-consulting-system/
+├── medical-consultation-app/   # Mã nguồn Frontend (Next.js)
+├── server.py                   # Backend chính (FastAPI Local)
+├── colab server/               # Script chạy trên Google Colab
+├── RAG/                        # Logic xử lý RAG & Vector DB
+├── data/                       # Dữ liệu mẫu (JSON, CSV)
+├── models/                     # Chứa các file model GGUF (nếu chạy offline hoàn toàn)
+├── requirements.txt            # Danh sách thư viện Python
+└── README.md                   # Tài liệu hướng dẫn
+```
 
-4. Cài đặt và triển khai
-   Chi tiết về cách cài đặt, chạy ứng dụng và triển khai mô hình sẽ được cập nhật sau khi hoàn thành dự án.
-5. Đóng góp và Hướng phát triển
-   Dự án này kỳ vọng sẽ đóng góp một mô hình AI tư vấn y tế tiếng Việt chất lượng cao cho cộng đồng. Trong tương lai, hệ thống có thể được mở rộng với các tính năng:
+## ⚠️ Lưu Ý Quan Trọng
+- **Dữ liệu Y tế**: Các câu trả lời của AI chỉ mang tính chất tham khảo, **không thay thế lời khuyên của bác sĩ chuyên khoa**.
+- **Bảo mật**: Không chia sẻ file `.env` hoặc URL Ngrok công khai.
 
-Tích hợp tính năng đa phương thức (phân tích hình ảnh X-quang, MRI).
+## 👥 Tác Giả
+Đồ án Tốt nghiệp - Hệ thống Tư vấn Y tế AI
 
-Tối ưu hóa hệ thống để xử lý các cuộc hội thoại phức tạp hơn.
+- **21110116** - Cao Nguyễn Thành An (Leader)
+- **21144449** - Cao Thọ Phú Thịnh
+- **21110860** - Trịnh Ngọc Anh Tuyên
 
-Phát triển giao diện ứng dụng di động để tiếp cận nhiều người dùng hơn.
-
-6. Liên hệ
-   21110116  Cao Nguyễn Thành An (Leader)
-   21144449  Cao Thọ Phú Thịnh
-   21110860  Trịnh Ngọc Anh Tuyên
+---
+*© 2024 Medical Consulting System. All rights reserved.*

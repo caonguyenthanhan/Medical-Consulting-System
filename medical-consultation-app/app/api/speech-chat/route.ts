@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get('audio_file') as File
     const context = formData.get('context') as string || 'health consultation'
     const conversationHistory = formData.get('conversation_history') as string
-    const useOptimized = formData.get('use_optimized') === 'true'
+    const useOptimized = true
 
     if (!audioFile) {
       return NextResponse.json(
@@ -15,74 +15,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if optimized endpoint should be used
-    if (useOptimized) {
-      console.log('Using optimized speech-chat endpoint...')
-      
-      // Use the new optimized backend endpoint
-      const optimizedFormData = new FormData()
-      optimizedFormData.append('audio_file', audioFile)
-
-      const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
-      const optimizedResponse = await fetch(`${BACKEND_URL}/v1/speech-chat-optimized`, {
-        method: 'POST',
-        body: optimizedFormData,
-      })
-
-      if (!optimizedResponse.ok) {
-        throw new Error('Optimized speech-chat failed')
-      }
-
-      const optimizedData = await optimizedResponse.json()
-      
-      if (optimizedData.success) {
-        // Modify the audio_url to use the backend URL (similar to text-to-speech route)
-        let audioUrl = optimizedData.audio_url
-        if (audioUrl && audioUrl.startsWith('/v1/audio/')) {
-          audioUrl = `${BACKEND_URL}${audioUrl}`
-        }
-        
-        return NextResponse.json({
-          success: true,
-          user_text: optimizedData.user_text,
-          ai_response: optimizedData.ai_response,
-          audio_url: audioUrl,
-          optimized: true,
-          chunking_used: optimizedData.chunking_used
-        })
-      } else {
-        return NextResponse.json({
-          success: false,
-          error: optimizedData.error || 'Optimized processing failed',
-          step: 'optimized-speech-chat'
-        })
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000'
+    const sttForm = new FormData()
+    sttForm.append('file', audioFile)
+    const sttResp = await fetch(`${backendUrl}/v1/stt/stream`, { method: 'POST', body: sttForm })
+    if (!sttResp.ok || !sttResp.body) return NextResponse.json({ success: false, error: 'stt_stream_failed' }, { status: 502 })
+    const reader = sttResp.body.getReader()
+    const decoder = new TextDecoder()
+    let userText = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value)
+      const lines = chunk.split(/\n+/).filter(Boolean)
+      for (const line of lines) {
+        try {
+          const obj = JSON.parse(line)
+          if (obj?.text) userText += obj.text
+          if (obj?.partial) userText += ''
+        } catch {}
       }
     }
-
-    // Step 1: Speech-to-Text
-    const speechToTextFormData = new FormData()
-    speechToTextFormData.append('audio_file', audioFile)
-
-    const speechResponse = await fetch(`${request.nextUrl.origin}/api/speech-to-text`, {
-      method: 'POST',
-      body: speechToTextFormData,
-    })
-
-    if (!speechResponse.ok) {
-      throw new Error('Speech-to-text failed')
-    }
-
-    const speechData = await speechResponse.json()
-    
-    if (!speechData.success || !speechData.text) {
-      return NextResponse.json({
-        success: false,
-        error: speechData.error || 'Could not understand audio',
-        step: 'speech-to-text'
-      })
-    }
-
-    const userText = speechData.text
+    userText = String(userText || '').replace(/[\*\_`#]+/g, '').replace(/\s+/g, ' ').trim()
+    if (!userText) return NextResponse.json({ success: false, error: 'empty_transcript' }, { status: 400 })
 
     // Step 2: AI Chat
     let parsedHistory = []
@@ -111,37 +66,34 @@ export async function POST(request: NextRequest) {
     }
 
     const chatData = await chatResponse.json()
-    const aiResponse = chatData.response || 'Xin lỗi, tôi không thể trả lời câu hỏi này.'
+    let aiResponse = chatData.response || 'Xin lỗi, tôi không thể trả lời câu hỏi này.'
+    aiResponse = String(aiResponse || '').replace(/[\*\_`#]+/g, '').replace(/\s+/g, ' ').trim()
 
-    // Step 3: Text-to-Speech
-    const ttsResponse = await fetch(`${request.nextUrl.origin}/api/text-to-speech`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: aiResponse,
-        lang: 'vi'
-      }),
-    })
+    const qs = new URLSearchParams({ text: aiResponse, lang: 'vi' })
+    const ttsResponse = await fetch(`${request.nextUrl.origin}/api/text-to-speech-stream?${qs.toString()}`)
 
     if (!ttsResponse.ok) {
       throw new Error('Text-to-speech failed')
     }
 
-    const ttsData = await ttsResponse.json()
+    const headers = new Headers(ttsResponse.headers)
+    const contentType = headers.get('Content-Type') || ''
+    let audioUrl: string | null = null
+    if (contentType.includes('audio/mpeg') && ttsResponse.body) {
+      const blob = await ttsResponse.blob()
+      audioUrl = URL.createObjectURL(blob)
+    }
 
-    // Return complete response
     return NextResponse.json({
       success: true,
       user_text: userText,
       ai_response: aiResponse,
-      audio_url: ttsData.success ? ttsData.audio_url : null,
+      audio_url: audioUrl,
       context: chatData.context,
       metadata: {
-        speech_to_text_success: speechData.success,
+        speech_to_text_success: true,
         ai_chat_success: true,
-        text_to_speech_success: ttsData.success,
+        text_to_speech_success: !!audioUrl,
         timestamp: new Date().toISOString()
       }
     })

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { ChevronRight, CheckCircle, AlertCircle, Info, MessageCircle, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -814,6 +815,7 @@ export function PsychologicalScreening() {
   const [showResults, setShowResults] = useState(true)
   const [showAiSupport, setShowAiSupport] = useState(false)
   const [showPDFGenerator, setShowPDFGenerator] = useState(false)
+  const router = useRouter()
 
 
 
@@ -829,6 +831,9 @@ export function PsychologicalScreening() {
 
   const handleAnswer = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
+    setTimeout(() => {
+      handleNext()
+    }, 500)
   }
 
   const handleNext = () => {
@@ -864,6 +869,14 @@ export function PsychologicalScreening() {
   if (showResults && selectedAssessment) {
     const score = calculateScore()
     const interpretation = getInterpretation(score)
+    const maxScore = selectedAssessment.questions.reduce((sum, q) => {
+      const m = Math.max(...q.options.map(o => o.score))
+      return sum + m
+    }, 0)
+    const circumference = 283
+    const ratio = maxScore > 0 ? score / maxScore : 0
+    const dashoffset = Math.max(0, circumference - Math.round(ratio * circumference))
+    const scoreColor = ratio < 0.33 ? "#10b981" : (ratio < 0.66 ? "#f59e0b" : "#ef4444")
 
     return (
       <div className="p-4 space-y-4 max-h-screen overflow-y-auto">
@@ -877,34 +890,39 @@ export function PsychologicalScreening() {
           <CardContent className="space-y-4">
             {interpretation && (
               <>
-                <div className="text-center p-6 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-primary mb-2">{score}</div>
-                  <div className="text-lg font-semibold mb-1">{interpretation.level}</div>
-                  <div className="text-sm text-muted-foreground">{interpretation.description}</div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    Đề xuất:
-                  </h4>
-                  <ul className="space-y-2">
+                <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-6">
+                  <div className="text-center p-4 bg-muted rounded-xl">
+                    <div className="relative w-40 h-40 mx-auto flex items-center justify-center">
+                      <svg className="w-full h-full" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" strokeWidth="8" />
+                        <circle cx="50" cy="50" r="45" fill="none" stroke={scoreColor} strokeWidth="8" strokeDasharray={circumference} strokeDashoffset={dashoffset} transform="rotate(-90 50 50)" strokeLinecap="round" />
+                      </svg>
+                      <div className="absolute text-center">
+                        <span className="text-4xl font-bold">{score}</span>
+                        <p className="text-sm text-gray-500">{interpretation.level}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">{interpretation.description}</div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                     {interpretation.recommendations.map((rec, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
+                      <div key={index} className="flex items-start gap-2 text-sm bg-gray-50 p-3 rounded-xl">
+                        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center mt-1 flex-shrink-0">
+                          <CheckCircle className="h-3 w-3 text-white" />
+                        </div>
                         {rec}
-                      </li>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
-                  <Button onClick={() => setShowAiSupport(!showAiSupport)} variant="outline" className="w-full">
+                  <Button onClick={() => router.push('/tam-su')} variant="outline" className="w-full">
                     <MessageCircle className="h-4 w-4 mr-2" />
                     {showAiSupport ? "Ẩn" : "Tâm sự"} với AI
                   </Button>
 
-                  {showAiSupport && (
+                  {false && (
                     <AiChatBox
                       placeholder="Chia sẻ cảm xúc của bạn..."
                       initialMessage={`Tôi hiểu rằng bạn vừa hoàn thành bài đánh giá và có thể đang có những cảm xúc phức tạp. Tôi ở đây để lắng nghe và hỗ trợ bạn. Bạn có muốn chia sẻ về cảm xúc hiện tại của mình không?`}
@@ -951,7 +969,7 @@ export function PsychologicalScreening() {
               assessment={selectedAssessment}
               answers={answers}
               score={calculateScore()}
-              interpretation={getInterpretation(calculateScore())}
+              interpretation={getInterpretation(calculateScore()) || { level: "Không xác định", description: "Chưa có diễn giải", recommendations: [] }}
               onClose={() => setShowPDFGenerator(false)}
             />
           </div>
@@ -970,11 +988,16 @@ export function PsychologicalScreening() {
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>
-              Câu hỏi {currentQuestion + 1}/{selectedAssessment.questions.length}
+              Bước {currentQuestion + 1}/{selectedAssessment.questions.length}
             </span>
             <span>{Math.round(progress)}%</span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#4facfe] to-[#00f2fe] transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
         <Card>
@@ -1053,7 +1076,7 @@ export function PsychologicalScreening() {
             Trước khi làm bài test, bạn có thể tâm sự với AI để được hỗ trợ và tư vấn ban đầu.
           </p>
           <Button
-            onClick={() => setShowAiSupport(!showAiSupport)}
+            onClick={() => router.push('/tam-su')}
             variant="outline"
             size="sm"
             className="border-blue-300 text-blue-700 hover:bg-blue-100"
@@ -1062,7 +1085,7 @@ export function PsychologicalScreening() {
             {showAiSupport ? "Ẩn" : "Bắt đầu"} tâm sự
           </Button>
 
-          {showAiSupport && (
+          {false && (
             <div className="mt-4">
               <AiChatBox
                 placeholder="Chia sẻ cảm xúc của bạn..."
@@ -1078,7 +1101,7 @@ export function PsychologicalScreening() {
         {assessments.map((assessment) => (
           <Card
             key={assessment.id}
-            className="cursor-pointer hover:shadow-md transition-shadow"
+            className="cursor-pointer min-h-[80px] rounded-[12px] shadow-[0px_2px_6px_rgba(0,0,0,0.05)] transition-all hover:scale-[1.02] hover:bg-muted/30"
             onClick={() => handleStartAssessment(assessment)}
           >
             <CardHeader>

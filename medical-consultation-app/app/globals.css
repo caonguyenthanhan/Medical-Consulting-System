@@ -11,19 +11,19 @@
   --card-foreground: #4b5563;
   --popover: #ffffff;
   --popover-foreground: #4b5563;
-  --primary: #3b82f6;
+  --primary: #0077be;
   --primary-foreground: #ffffff;
   --secondary: #fefce8;
   --secondary-foreground: #4b5563;
   --muted: #f8fafc;
   --muted-foreground: #64748b;
-  --accent: #0ea5e9;
+  --accent: #50c878;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
   --input: #ffffff;
-  --ring: #3b82f6;
+  --ring: #0077be;
   --chart-1: #60a5fa;
   --chart-2: #34d399;
   --chart-3: #fbbf24;
@@ -123,4 +123,52 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+html, body {
+  height: 100%;
+}
+body {
+  overflow: hidden;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at top right, rgba(0, 119, 190, 0.08) 0%, transparent 40%), radial-gradient(circle at bottom left, rgba(0, 119, 190, 0.08) 0%, transparent 40%), #ffffff;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(0, 119, 190, 0.45);
+}
+
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(20px, -30px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+.animate-blob {
+  animation: blob 12s ease-in-out infinite;
+}
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+.animation-delay-4000 {
+  animation-delay: 4s;
 }

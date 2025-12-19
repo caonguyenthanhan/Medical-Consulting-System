@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
 
 // Determine context based on the conversation or user input
 function determineContext(userMessage: string, conversationHistory?: any[]): string {
@@ -21,7 +23,9 @@ function determineContext(userMessage: string, conversationHistory?: any[]): str
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, context, question, message, conversationHistory } = await request.json()
+    const { prompt, context, question, message, conversationHistory, model, conversation_id, user_id, persona, systemPrompt: systemPromptOverride, role } = await request.json()
+    const auth = request.headers.get('authorization') || ''
+    const referer = request.headers.get('referer') || ''
     
     const userMessage = message || question || prompt
     if (!userMessage) {
@@ -34,10 +38,48 @@ export async function POST(request: NextRequest) {
     // Determine context based on user message
     const determinedContext = context || determineContext(userMessage, conversationHistory)
     
-    const fastApiUrl = process.env.INTERNAL_LLM_URL || 'http://127.0.0.1:8000/v1/chat/completions'
-    const systemPrompt = `You are a medical consultation assistant. Provide helpful, safe, and culturally appropriate answers in Vietnamese. Context: ${determinedContext}`
+    const cpuFallback = process.env.INTERNAL_LLM_URL || 'http://127.0.0.1:8000/v1/chat/completions'
+    let fastApiUrl = `${String(defaultGpuUrl).replace(/\/$/, '')}/v1/chat/completions`
+    let originalTarget: 'cpu' | 'gpu' = 'gpu'
+    try {
+      const dataDir = path.join(process.cwd(), 'data')
+      // Prefer runtime-mode gpu_url if set
+      try {
+        const modeRaw = fs.readFileSync(path.join(dataDir, 'runtime-mode.json'), 'utf-8')
+        const mode = JSON.parse(modeRaw)
+        if (mode?.target === 'cpu' || mode?.target === 'gpu') {
+          originalTarget = mode.target
+        }
+        if (mode?.gpu_url) {
+          fastApiUrl = `${String(mode.gpu_url).replace(/\/$/, '')}/v1/chat/completions`
+        }
+      } catch {}
+      // Otherwise pick latest from server registry
+      try {
+        const regRaw = fs.readFileSync(path.join(dataDir, 'server-registry.json'), 'utf-8')
+        const reg = JSON.parse(regRaw)
+        const servers = Array.isArray(reg?.servers) ? reg.servers : []
+        const active = servers.filter((s: any) => s.status === 'active')
+        const latest = (active.length ? active : servers).sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]
+        if (latest?.url) {
+          fastApiUrl = `${String(latest.url).replace(/\/$/, '')}/v1/chat/completions`
+        }
+      } catch {}
+    } catch {}
+    const personaText = typeof systemPromptOverride === 'string' && systemPromptOverride.trim()
+      ? systemPromptOverride.trim()
+      : (() => {
+          const p = (typeof persona === 'string' && persona.trim()) ? persona.trim() : (typeof role === 'string' && role.trim() ? role.trim() : '')
+          const base = `You are a medical consultation assistant. Provide helpful, safe, and culturally appropriate answers in Vietnamese.`
+          if (p) return `${base} Act as: ${p}. Context: ${determinedContext}`
+          return `${base} Context: ${determinedContext}`
+        })()
+    const systemPrompt = personaText
+    const selectedModel = (typeof model === 'string' ? model.toLowerCase() : 'flash')
+    const modeHeader = selectedModel === 'pro' ? 'pro' : 'flash'
     const body = {
-      model: 'local-llama',
+      model: selectedModel,
+      mode: modeHeader,
       messages: [
         { role: 'system', content: systemPrompt },
         ...(Array.isArray(conversationHistory) ? conversationHistory : []).map((m: any) => ({
@@ -47,14 +89,43 @@ export async function POST(request: NextRequest) {
         { role: 'user', content: userMessage }
       ],
       max_tokens: 1024,
-      temperature: 0.7
+      temperature: 0.3,
+      conversation_id: typeof conversation_id === 'string' ? conversation_id : null,
+      user_id: typeof user_id === 'string' ? user_id : null
     }
 
-    const resp = await fetch(fastApiUrl, {
+    const start = Date.now()
+    let resp = await fetch(fastApiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth ? { 'Content-Type': 'application/json', 'Authorization': auth, 'ngrok-skip-browser-warning': 'true', 'X-Mode': modeHeader } : { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true', 'X-Mode': modeHeader },
       body: JSON.stringify(body)
     })
+    let modeUsed = fastApiUrl.includes('127.0.0.1') || fastApiUrl.includes('localhost') ? 'cpu' : 'gpu'
+    if (!resp.ok) {
+      try {
+        if (modeUsed === 'gpu') {
+          const fallbackUrl = cpuFallback
+          const retry = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: auth ? { 'Content-Type': 'application/json', 'Authorization': auth, 'ngrok-skip-browser-warning': 'true' } : { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+            body: JSON.stringify(body)
+          })
+          if (retry.ok) {
+            resp = retry
+            modeUsed = 'cpu'
+            try {
+              fs.appendFileSync(path.join(process.cwd(), 'data', 'runtime-events.jsonl'), JSON.stringify({ type: 'fallback', from: 'gpu', to: 'cpu', ts: new Date().toISOString() }) + '\n')
+              const now = new Date().toISOString()
+              const dataDir = path.join(process.cwd(), 'data')
+              const modePath = path.join(dataDir, 'runtime-mode.json')
+              const payload: any = { target: 'cpu', updated_at: now }
+              fs.writeFileSync(modePath, JSON.stringify(payload, null, 2))
+              fs.appendFileSync(path.join(dataDir, 'runtime-events.jsonl'), JSON.stringify({ type: 'mode_change', target: 'cpu', ts: now }) + '\n')
+            } catch {}
+          }
+        }
+      } catch {}
+    }
 
     if (!resp.ok) {
       const text = await resp.text()
@@ -83,7 +154,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const duration = Date.now() - start
+    try {
+      fs.appendFileSync(path.join(process.cwd(), 'data', 'runtime-metrics.jsonl'), JSON.stringify({ mode: modeUsed, duration_ms: duration, ok: !!data, ts: new Date().toISOString(), endpoint: 'llm-chat' }) + '\n')
+    } catch {}
+    try {
+      if (modeUsed === 'gpu') {
+        const base = fastApiUrl.replace(/\/v1\/chat\/completions$/, '')
+        const gm = await fetch(`${base}/gpu/metrics`, { headers: { 'ngrok-skip-browser-warning': 'true' } })
+        if (gm.ok) {
+          const v = await gm.json()
+          fs.appendFileSync(path.join(process.cwd(), 'data', 'runtime-events.jsonl'), JSON.stringify({ type: 'gpu_metrics', ts: new Date().toISOString(), data: v }) + '\n')
+        }
+      }
+      // Log frontend call for debugging origin
+      try {
+        const baseUrl = fastApiUrl.replace(/\/v1\/chat\/completions$/, '')
+        fs.appendFileSync(path.join(process.cwd(), 'data', 'runtime-events.jsonl'), JSON.stringify({ type: 'frontend_call', endpoint: 'llm-chat', referer, target_base: baseUrl, ts: new Date().toISOString() }) + '\n')
+      } catch {}
+    } catch {}
     const content = data?.choices?.[0]?.message?.content || data?.response || ''
+    const newConversationId = data?.conversation_id || conversation_id || null
 
     if (!content) {
       console.error('No content in response:', data)
@@ -104,8 +195,14 @@ export async function POST(request: NextRequest) {
         context: determinedContext,
         prompt_length: userMessage.length,
         response_length: content.length,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+        mode: modeUsed,
+        tier: modeHeader,
+        fallback: originalTarget === 'gpu' && modeUsed === 'cpu',
+        model_init: !!(data && (data as any).model_init),
+        rag: (data && (data as any).rag) ? (data as any).rag : undefined
+      },
+      conversation_id: newConversationId
     })
     
   } catch (error) {
@@ -116,3 +213,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+const defaultGpuUrl = process.env.DEFAULT_GPU_URL || 'https://elissa-villous-scourgingly.ngrok-free.dev'

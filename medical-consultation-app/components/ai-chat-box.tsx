@@ -63,16 +63,15 @@ export function AiChatBox({
         { role: 'user', content: userMessage.content },
       ]
 
-      const response = await fetch("http://127.0.0.1:8000/v1/chat/completions", {
+      const response = await fetch("/api/llm-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "local-llama",
-          messages: chatMessages,
-          temperature: 0.7,
-          max_tokens: 1024,
+          model: "flash",
+          message: userMessage.content,
+          conversationHistory,
         }),
       })
 
@@ -81,7 +80,14 @@ export function AiChatBox({
       }
 
       const data = await response.json()
-      const aiResponse = data?.choices?.[0]?.message?.content || data?.response || ""
+      const aiResponse = (data as any)?.response || ""
+      const md = (data as any)?.metadata
+      if (md && typeof window !== 'undefined') {
+        try {
+          const detail = { target: md.mode === 'gpu' ? 'gpu' : 'cpu' }
+          window.dispatchEvent(new CustomEvent('runtime_mode_changed', { detail }))
+        } catch {}
+      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,9 +128,11 @@ export function AiChatBox({
                 {message.isUser ? (
                   <p className="text-sm">{message.content}</p>
                 ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} className="text-sm prose prose-sm dark:prose-invert">
-                    {message.content}
-                  </ReactMarkdown>
+                  <div className="text-sm font-bold prose prose-sm dark:prose-invert">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
                 <p
                   className={`text-xs mt-1 opacity-70 ${message.isUser ? "text-primary-foreground" : "text-muted-foreground"}`}

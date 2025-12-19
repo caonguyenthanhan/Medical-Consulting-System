@@ -115,7 +115,14 @@ export default function SpeechChatPage() {
       setIsLoading(true)
       
       const formData = new FormData()
-      formData.append('audio_file', audioBlob, 'recording.wav')
+      const fname1 = audioBlob.type.includes('webm')
+        ? 'recording.webm'
+        : audioBlob.type.includes('ogg')
+        ? 'recording.ogg'
+        : audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')
+        ? 'recording.m4a'
+        : 'recording.wav'
+      formData.append('audio_file', audioBlob, fname1)
       formData.append('context', 'health consultation')
       formData.append('conversation_history', JSON.stringify(messages.map(msg => ({
         role: msg.isUser ? 'user' : 'assistant',
@@ -179,7 +186,14 @@ export default function SpeechChatPage() {
       
       // First, convert speech to text
       const formData = new FormData()
-      formData.append('audio_file', audioBlob, 'recording.wav')
+      const fname2 = audioBlob.type.includes('webm')
+        ? 'recording.webm'
+        : audioBlob.type.includes('ogg')
+        ? 'recording.ogg'
+        : audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')
+        ? 'recording.m4a'
+        : 'recording.wav'
+      formData.append('audio_file', audioBlob, fname2)
 
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
@@ -245,7 +259,14 @@ export default function SpeechChatPage() {
       setIsLoading(true)
       
       const formData = new FormData()
-      formData.append('audio_file', audioBlob, 'recording.wav')
+      const fname3 = audioBlob.type.includes('webm')
+        ? 'recording.webm'
+        : audioBlob.type.includes('ogg')
+        ? 'recording.ogg'
+        : audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a')
+        ? 'recording.m4a'
+        : 'recording.wav'
+      formData.append('audio_file', audioBlob, fname3)
 
       const response = await fetch('/api/speech-to-text', {
         method: 'POST',
@@ -384,36 +405,49 @@ export default function SpeechChatPage() {
       setIsPlayingAudio(messageId)
       setIsPausedAudio(null)
 
-      const response = await fetch('/api/text-to-speech', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          lang: 'vi'
-        }),
-      })
+      // Phát theo luồng để bắt đầu nghe sớm trong khi xử lý phần sau
+      const streamUrl = `/api/text-to-speech-stream?text=${encodeURIComponent(text)}&lang=vi`
+      const audio = new Audio(streamUrl)
+      audioRef.current = audio
 
-      const data = await response.json()
-      
-      if (data.success && data.audio_url) {
-        const audio = new Audio(data.audio_url)
-        audioRef.current = audio
-
-        audio.onended = () => {
-          setIsPlayingAudio(null)
-          setIsPausedAudio(null)
-        }
-
-        audio.onerror = () => {
-          setIsPlayingAudio(null)
-          setIsPausedAudio(null)
-          console.error('Error playing audio')
-        }
-
-        await audio.play()
+      audio.onended = () => {
+        setIsPlayingAudio(null)
+        setIsPausedAudio(null)
       }
+
+      audio.onerror = async () => {
+        // Fallback: dùng API tạo file nếu luồng gặp lỗi
+        try {
+          const response = await fetch('/api/text-to-speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, lang: 'vi' }),
+          })
+          const data = await response.json()
+          if (data.success && data.audio_url) {
+            const altAudio = new Audio(data.audio_url)
+            audioRef.current = altAudio
+            altAudio.onended = () => {
+              setIsPlayingAudio(null)
+              setIsPausedAudio(null)
+            }
+            altAudio.onerror = () => {
+              setIsPlayingAudio(null)
+              setIsPausedAudio(null)
+            }
+            await altAudio.play()
+          } else {
+            setIsPlayingAudio(null)
+            setIsPausedAudio(null)
+          }
+        } catch (e) {
+          console.error('Fallback TTS error:', e)
+          setIsPlayingAudio(null)
+          setIsPausedAudio(null)
+        }
+      }
+
+      await audio.play()
     } catch (error) {
       console.error('Error with text-to-speech:', error)
       setIsPlayingAudio(null)
@@ -538,7 +572,7 @@ export default function SpeechChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800" suppressHydrationWarning>
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">

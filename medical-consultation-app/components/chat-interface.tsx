@@ -1,12 +1,17 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, AlertTriangle, Bot, User, Sparkles, Volume2, Pause, Play, Square, Mic } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Send, AlertTriangle, Bot, User, Sparkles, Volume2, Pause, Play, Square, Mic, Image as ImageIcon, X, Plus, RefreshCcw, ChevronLeft, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createPrompt, parseModelResponse } from "@/lib/llm-config"
+import { } from "@/lib/llm-config"
+import { useToast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface Message {
   id: string
@@ -15,7 +20,32 @@ interface Message {
   timestamp: Date
 }
 
-export function ChatInterface() {
+export function ChatInterface({ initialConversationId }: { initialConversationId?: string }) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const initRef = useRef<{ fetched: boolean; opened: boolean; navigating: boolean }>({ fetched: false, opened: false, navigating: false })
+  const [headerPad, setHeaderPad] = useState<string>('6rem')
+  useEffect(() => {
+    const updatePad = () => {
+      try {
+        const el = typeof window !== 'undefined' ? document.querySelector('[data-site-header]') as HTMLElement | null : null
+        const bottom = el ? el.getBoundingClientRect().bottom : 64
+        const extra = 16
+        setHeaderPad(`${Math.round(bottom + extra)}px`)
+      } catch {}
+    }
+    updatePad()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updatePad)
+      window.addEventListener('scroll', updatePad, { passive: true } as any)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', updatePad)
+        window.removeEventListener('scroll', updatePad)
+      }
+    }
+  }, [])
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -34,6 +64,7 @@ export function ChatInterface() {
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const sendingRef = useRef<boolean>(false)
 
   // Smart suggestion system based on context and conversation history
   const getSmartSuggestions = () => {
@@ -109,34 +140,93 @@ export function ChatInterface() {
     scrollToBottom()
   }, [messages])
 
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading) return
+  const [selectedModel, setSelectedModel] = useState<'flash' | 'pro'>('flash')
+  const [showTools, setShowTools] = useState(false)
+  const [selectedDocName, setSelectedDocName] = useState<string | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [isDisclaimerCollapsed, setIsDisclaimerCollapsed] = useState<boolean>(false)
+  const [disclaimerDismissed, setDisclaimerDismissed] = useState<boolean>(false)
+  const [sidebarSearchOpen, setSidebarSearchOpen] = useState<boolean>(false)
+  const [sidebarSearch, setSidebarSearch] = useState<string>('')
+ 
+
+  const startConversationIfNeeded = async (): Promise<string | null> => {
+    if (conversationId) return conversationId
+    if (!authToken) {
+      try {
+        const newId = `conv-${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`
+        setConversationId(newId)
+        if (typeof window !== 'undefined') {
+          const serial = messages.map(m => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: m.timestamp.toISOString() }))
+          localStorage.setItem(`conv_messages_${newId}`, JSON.stringify(serial))
+          localStorage.setItem(`conv_title_${newId}`, 'Hội thoại')
+        }
+        loadLocalConversations()
+        return newId
+      } catch {
+        return null
+      }
+    }
+    try {
+      const resp = await fetch('http://127.0.0.1:8000/v1/conversations/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ title: '' })
+      })
+      const data = await resp.json()
+      if (resp.ok && data?.id) {
+        setConversationId(data.id)
+        await fetchConversations()
+        
+        return data.id
+      }
+    } catch (e) {
+      console.error('Start conversation error:', e)
+    }
+    return conversationId
+  }
+
+  const sendMessageToAI = async (messageText: string) => {
+    if (!messageText.trim() || sendingRef.current) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: input,
+      content: messageText,
       isUser: true,
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    const currentInput = input
-    setInput("")
+    sendingRef.current = true
     setIsLoading(true)
 
     try {
-      const prompt = createPrompt(currentInput)
+      const ensuredId = await startConversationIfNeeded()
+      const conversationHistory = [...messages, userMessage].map(m => ({
+        role: m.isUser ? 'user' : 'assistant',
+        content: m.content
+      }))
+      try {
+        const idToUse = ensuredId || conversationId
+        if (idToUse && typeof window !== 'undefined') {
+          const toStore = [...messages, userMessage].map(m => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: m.timestamp.toISOString() }))
+          sessionStorage.setItem(`pending_conv_messages_${idToUse}`, JSON.stringify(toStore))
+        }
+      } catch {}
+      const payload = {
+        model: selectedModel,
+        message: messageText,
+        conversation_id: ensuredId || conversationId,
+        user_id: userId,
+        conversationHistory,
+        messages: conversationHistory
+      }
 
-      const response = await fetch("/api/llm-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          context: "general health consultation",
-          question: currentInput,
-        }),
+      const response = await fetch(authToken ? 'http://127.0.0.1:8000/v1/chat/completions' : '/api/llm-chat', {
+        method: 'POST',
+        headers: authToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` } : { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -145,19 +235,8 @@ export function ChatInterface() {
         throw new Error(`Failed to get AI response: ${response.status} ${response.statusText}`)
       }
 
-      let data
-      try {
-        const responseText = await response.text()
-        if (!responseText || responseText.trim() === '') {
-          throw new Error("Empty response from API")
-        }
-        data = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error("JSON parsing error in frontend:", parseError)
-        throw new Error("Invalid response format from server")
-      }
-
-      const aiResponse = data.response || parseModelResponse(data.generated_text || data.response || "")
+      const data = await response.json()
+      const aiResponse = authToken ? ((data as any)?.choices?.[0]?.message?.content || "Không nhận được phản hồi từ máy trả lời") : ((data as any)?.response || "Không nhận được phản hồi từ máy trả lời")
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -165,11 +244,130 @@ export function ChatInterface() {
         isUser: false,
         timestamp: new Date(),
       }
-
+      if (authToken && typeof window !== 'undefined') {
+        try {
+          const mu = (data as any)?.mode_used
+          const target = mu === 'gpu' ? 'gpu' : 'cpu'
+          window.dispatchEvent(new CustomEvent('runtime_mode_changed', { detail: { target } }))
+        } catch {}
+      }
+      const snapshot = [...messages, userMessage, aiMessage]
       setMessages((prev) => [...prev, aiMessage])
+      const md = (data as any)?.metadata
+      if (md && typeof window !== 'undefined') {
+        try {
+          const detail = { target: md.mode === 'gpu' ? 'gpu' : 'cpu' }
+          window.dispatchEvent(new CustomEvent('runtime_mode_changed', { detail }))
+          if (md.model_init) {
+            toast({
+              title: "Khởi động mô hình CPU",
+              description: "Đang tải mô hình GGUF để tiếp tục trên CPU.",
+            })
+          }
+        } catch {}
+      }
+      let newId = typeof (data as any).conversation_id === 'string' && (data as any).conversation_id ? (data as any).conversation_id : (ensuredId || conversationId)
+      if (newId && typeof window !== 'undefined') {
+        try {
+          const toStore = snapshot.map(m => ({ id: m.id, content: m.content, isUser: m.isUser, timestamp: m.timestamp.toISOString() }))
+          sessionStorage.setItem(`pending_conv_messages_${newId}`, JSON.stringify(toStore))
+        } catch {}
+        if (!authToken) {
+          const toStore = snapshot.map(m => ({ id: m.id, content: m.content, isUser: m.isUser, timestamp: m.timestamp.toISOString() }))
+          localStorage.setItem(`conv_messages_${newId}`, JSON.stringify(toStore))
+        }
+        setConversationId(newId)
+        if (typeof window !== 'undefined') {
+          try {
+            const url = new URL(window.location.href)
+            url.pathname = '/tu-van'
+            url.searchParams.set('id', newId)
+            window.history.replaceState(null, '', url.toString())
+          } catch {
+            router.replace(`/tu-van?id=${newId}`)
+          }
+        }
+        if (!authToken) {
+          try {
+            const baseText = messageText.trim() || aiResponse.trim()
+            const words = baseText.split(/\s+/).slice(0, 6).join(' ')
+            const title = words || 'Hội thoại'
+            localStorage.setItem(`conv_title_${newId}`, title)
+          } catch {}
+        }
+        if (authToken) {
+          try { await fetchConversations() } catch {}
+        }
+      }
+      await fetchConversations()
     } catch (error) {
       console.error("Error getting AI response:", error)
 
+      const fallbackMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content:
+          "Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau hoặc tham khảo ý kiến bác sĩ chuyên khoa để có lời khuyên chính xác nhất.",
+        isUser: false,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, fallbackMessage])
+    } finally {
+      sendingRef.current = false
+      setIsLoading(false)
+      // Clear image preview after sending
+      setSelectedImageBase64(null)
+      setSelectedImageName(null)
+      setSelectedImageMime(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (((!input.trim()) && !selectedImageBase64) || sendingRef.current) return
+
+    const currentInput = input
+    setInput("")
+
+    try {
+      // Nếu có ảnh đã chọn, gửi tới VLM cùng với văn bản
+      if (selectedImageBase64) {
+        const parts: string[] = []
+        if (currentInput.trim()) parts.push(`Nội dung: ${currentInput}`)
+        if (selectedImageName) parts.push(`Đã đính kèm ảnh: ${selectedImageName}`)
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: parts.join('\n'),
+          isUser: true,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, userMessage])
+
+        const resp = await fetch('http://127.0.0.1:8000/v1/vision-chat', {
+          method: 'POST',
+          headers: authToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` } : { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: currentInput, image_base64: selectedImageBase64 })
+        })
+
+        const data = await resp.json()
+        const aiText = data?.response || 'Không nhận được phản hồi từ VLM.'
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          content: aiText,
+          isUser: false,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, aiMsg])
+        await fetchConversations()
+
+        setSelectedImageBase64(null)
+        setSelectedImageName(null)
+        setSelectedImageMime(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      } else {
+        await sendMessageToAI(currentInput)
+      }
+    } catch (error) {
+      console.error("Error getting AI response:", error)
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         content:
@@ -194,41 +392,53 @@ export function ChatInterface() {
 
       setIsPlayingAudio(messageId)
 
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: text,
-          lang: "vi"
-        }),
-      })
+      // Ưu tiên phát theo luồng để bắt đầu nghe sớm
+      const sanitized = String(text).replace(/\*\*/g, '')
+      const streamUrl = `/api/text-to-speech-stream?text=${encodeURIComponent(sanitized)}&lang=vi`
+      const audio = new Audio(streamUrl)
+      audioRef.current = audio
 
-      if (!response.ok) {
-        throw new Error(`Failed to generate audio: ${response.status}`)
+      audio.onended = () => {
+        setIsPlayingAudio(null)
+        setIsPausedAudio(null)
+        audioRef.current = null
       }
 
-      const data = await response.json()
-      
-      if (data.audio_url) {
-        const audio = new Audio(data.audio_url)
-        audioRef.current = audio
-        
-        audio.onended = () => {
+      audio.onerror = async () => {
+        // Fallback: dùng API thường nếu luồng gặp lỗi
+        try {
+          const response = await fetch("/api/text-to-speech", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: sanitized, lang: "vi" }),
+          })
+          const data = await response.json()
+          if (data.audio_url) {
+            const altAudio = new Audio(data.audio_url)
+            audioRef.current = altAudio
+            altAudio.onended = () => {
+              setIsPlayingAudio(null)
+              setIsPausedAudio(null)
+              audioRef.current = null
+            }
+            altAudio.onerror = () => {
+              setIsPlayingAudio(null)
+              setIsPausedAudio(null)
+              audioRef.current = null
+            }
+            await altAudio.play()
+          } else {
+            setIsPlayingAudio(null)
+            setIsPausedAudio(null)
+          }
+        } catch (e) {
+          console.error("Fallback TTS error:", e)
           setIsPlayingAudio(null)
           setIsPausedAudio(null)
-          audioRef.current = null
         }
-        
-        audio.onerror = () => {
-          setIsPlayingAudio(null)
-          setIsPausedAudio(null)
-          audioRef.current = null
-        }
-        
-        await audio.play()
       }
+
+      await audio.play()
     } catch (error) {
       console.error("Error playing audio:", error)
       setIsPlayingAudio(null)
@@ -260,6 +470,68 @@ export function ChatInterface() {
     }
     setIsPlayingAudio(null)
     setIsPausedAudio(null)
+  }
+
+  const startNewConversation = async () => {
+    await beginNewConversation()
+  }
+
+  const beginNewConversation = async () => {
+    if (authToken) {
+      try {
+        const resp = await fetch('http://127.0.0.1:8000/v1/conversations/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({ title: '' })
+        })
+        const data = await resp.json()
+        const newId: string | undefined = typeof data?.conversation_id === 'string' && data.conversation_id ? data.conversation_id : (typeof data?.id === 'string' ? data.id : undefined)
+        if (newId) {
+          setConversationId(newId)
+          const defaultMsg: Message = {
+            id: Date.now().toString(),
+            content:
+              "Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?",
+            isUser: false,
+            timestamp: new Date(),
+          }
+          setMessages([defaultMsg])
+          
+          await fetchConversations()
+          if (typeof window !== 'undefined') {
+            try {
+              const url = new URL(window.location.href)
+              url.pathname = '/tu-van'
+              url.searchParams.set('id', newId)
+              window.history.replaceState(null, '', url.toString())
+            } catch {
+              router.replace(`/tu-van?id=${newId}`)
+            }
+          }
+        }
+      } catch (e) {
+      }
+    } else {
+      const newId = `conv-${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`
+      setConversationId(newId)
+      setMessages([])
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`conv_messages_${newId}`, JSON.stringify([]))
+          localStorage.setItem(`conv_title_${newId}`, 'Hội thoại')
+        } catch {}
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href)
+          url.pathname = '/tu-van'
+          url.searchParams.set('id', newId)
+          window.history.replaceState(null, '', url.toString())
+        } catch {
+          router.replace(`/tu-van?id=${newId}`)
+        }
+      }
+    }
   }
 
   const startRecording = async () => {
@@ -325,6 +597,7 @@ export function ChatInterface() {
       
       if (data.success && data.text) {
         setInput(data.text);
+        await sendMessageToAI(data.text);
       } else {
         console.error('Speech-to-text error:', data.error);
         alert('Không thể chuyển đổi giọng nói thành văn bản. Vui lòng thử lại.');
@@ -335,37 +608,624 @@ export function ChatInterface() {
     }
   };
 
+  // Image upload & VLM
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const docInputRef = useRef<HTMLInputElement | null>(null)
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(null)
+  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null)
+  const [selectedImageMime, setSelectedImageMime] = useState<string | null>(null)
+  const [authToken, setAuthToken] = useState<string | null>(null)
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result.split(',')[1] || ''
+        resolve(base64)
+      }
+      reader.onerror = (err) => reject(err)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const base64 = await fileToBase64(file)
+      setSelectedImageBase64(base64)
+      setSelectedImageName(file.name)
+      setSelectedImageMime(file.type)
+    } catch (err) {
+      console.error('Error reading image:', err)
+      alert('Không thể đọc ảnh. Vui lòng thử lại.')
+      setSelectedImageBase64(null)
+      setSelectedImageName(null)
+      setSelectedImageMime(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSelectedDocName(file.name)
+  }
+  useEffect(() => {
+    try {
+      const t = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+      const uid = typeof window !== 'undefined' ? localStorage.getItem('userId') : null
+      setAuthToken(t)
+      setUserId(uid || null)
+    } catch {}
+  }, [])
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : undefined
+        const resp = await fetch('http://127.0.0.1:8000/v1/runtime/state', { headers })
+        if (resp.ok) {
+          const data = await resp.json()
+          const m = String(data?.model || '').toLowerCase()
+          if (m === 'pro' || m === 'flash') setSelectedModel(m as 'flash' | 'pro')
+        }
+      } catch {}
+    })()
+  }, [authToken])
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+        await fetch('http://127.0.0.1:8000/v1/runtime/state', { method: 'POST', headers, body: JSON.stringify({ model: selectedModel }) })
+      } catch {}
+    })()
+  }, [selectedModel, authToken])
+  useEffect(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('dismiss_disclaimer') : null
+      setDisclaimerDismissed(!!v)
+    } catch {}
+  }, [])
+
+  // Drag & Drop image support
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    try {
+      const file = e.dataTransfer.files && e.dataTransfer.files[0]
+      if (!file) return
+      if (!file.type.startsWith('image/')) {
+        alert('Chỉ hỗ trợ kéo-thả ảnh.')
+        return
+      }
+      const base64 = await fileToBase64(file)
+      setSelectedImageBase64(base64)
+      setSelectedImageName(file.name)
+      setSelectedImageMime(file.type)
+    } catch (err) {
+      console.error('Error handling drop:', err)
+      alert('Không thể xử lý ảnh được kéo-thả. Vui lòng thử lại.')
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setSelectedImageBase64(null)
+    setSelectedImageName(null)
+    setSelectedImageMime(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const handleSuggestedQuestion = (question: string) => {
     setInput(question)
   }
 
+  const [conversations, setConversations] = useState<{ id: string; title: string; last_active: string }[]>([])
+  const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false)
+  const [showSidebar, setShowSidebar] = useState<boolean>(true)
+  const [isRenameOpen, setIsRenameOpen] = useState<boolean>(false)
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null)
+  const [renameInput, setRenameInput] = useState<string>("")
+  const [serverUnavailable, setServerUnavailable] = useState<boolean>(false)
+
+  const loadLocalConversations = () => {
+    if (typeof window === 'undefined') return
+    try {
+      const items: { id: string; title: string; last_active: string }[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || ''
+        if (key.startsWith('conv_messages_')) {
+          const id = key.slice('conv_messages_'.length)
+          let title = localStorage.getItem(`conv_title_${id}`) || ''
+          let lastActive = new Date().toISOString()
+          const raw = localStorage.getItem(`conv_messages_${id}`)
+          if (raw) {
+            try {
+              const arr = JSON.parse(raw)
+              if (Array.isArray(arr) && arr.length) {
+                const last = arr[arr.length - 1]
+                lastActive = String(last?.timestamp || lastActive)
+                if (!title) {
+                  title = 'Hội thoại'
+                }
+              }
+            } catch {}
+          }
+          items.push({ id, title, last_active: lastActive })
+        }
+      }
+      items.sort((a, b) => (a.last_active > b.last_active ? -1 : 1))
+      setConversations(items)
+    } catch {}
+  }
+
+  const fetchConversations = async () => {
+    if (!authToken) {
+      loadLocalConversations()
+      return
+    }
+    setIsLoadingConversations(true)
+    try {
+      const resp = await fetch('http://127.0.0.1:8000/v1/conversations', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+      const data = await resp.json()
+      const serverItems = Array.isArray(data?.conversations) ? data.conversations : []
+      const sorted = serverItems.slice().sort((a: any, b: any) => (a.last_active > b.last_active ? -1 : 1))
+      setConversations(sorted)
+      setServerUnavailable(false)
+    } catch (e) {
+      console.error('Load conversations error:', e)
+      setServerUnavailable(true)
+    } finally {
+      setIsLoadingConversations(false)
+    }
+  }
+
+  const openConversation = async (id: string) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href)
+        url.pathname = '/tu-van'
+        url.searchParams.set('id', id)
+        window.history.replaceState(null, '', url.toString())
+      } catch {
+        router.replace(`/tu-van?id=${id}`)
+      }
+    }
+    setConversationId(id)
+    if (!authToken || String(id).startsWith('conv-')) {
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = localStorage.getItem(`conv_messages_${id}`)
+          if (raw) {
+            const arr = JSON.parse(raw)
+            const mapped: Message[] = Array.isArray(arr) ? arr.map((m: any) => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: new Date(m.timestamp) })) : []
+            if (mapped.length) {
+              setMessages(mapped)
+            }
+          }
+        }
+      } catch {}
+      return
+    }
+    try {
+      const resp = await fetch(`http://127.0.0.1:8000/v1/conversations/${id}`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          throw new Error('Không tìm thấy hội thoại hoặc bạn không có quyền truy cập.')
+        }
+        throw new Error(`Lỗi server: ${resp.status}`)
+      }
+      const data = await resp.json()
+      const src = Array.isArray(data?.messages) ? data.messages : (Array.isArray(data?.items) ? data.items : [])
+      const lastTs = typeof data?.last_active === 'string' ? data.last_active : new Date().toISOString()
+      let mapped: Message[] = src.map((m: any, idx: number) => ({
+        id: String(m?.id || `${id}-${idx}`),
+        content: String(m?.content || ''),
+        isUser: String(m?.role || 'user') === 'user',
+        timestamp: new Date(m?.timestamp || lastTs)
+      }))
+
+      
+
+      if (!mapped.length && typeof window !== 'undefined') {
+        try {
+          const raw = sessionStorage.getItem(`pending_conv_messages_${id}`)
+          if (raw) {
+            const arr = JSON.parse(raw)
+            const snap: Message[] = Array.isArray(arr) ? arr.map((m: any) => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: new Date(m.timestamp) })) : []
+            if (snap.length) {
+              setMessages(snap)
+              sessionStorage.removeItem(`pending_conv_messages_${id}`)
+            } else {
+              setMessages([
+                {
+                  id: '1',
+                  content:
+                    'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+                  isUser: false,
+                  timestamp: new Date(),
+                },
+              ])
+            }
+          } else {
+            setMessages([
+              {
+                id: '1',
+                content:
+                  'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+                isUser: false,
+                timestamp: new Date(),
+              },
+            ])
+          }
+        } catch {
+          setMessages([
+            {
+              id: '1',
+              content:
+                'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+              isUser: false,
+              timestamp: new Date(),
+            },
+          ])
+        }
+      } else {
+        setMessages(mapped)
+        try {
+          if (typeof window !== 'undefined') {
+            const rawPend = sessionStorage.getItem(`pending_conv_messages_${id}`)
+            if (rawPend) {
+              const arr = JSON.parse(rawPend)
+              const pend: Message[] = Array.isArray(arr) ? arr.map((m: any) => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: new Date(m.timestamp) })) : []
+              if (pend.length) {
+                const existing = new Set(mapped.map(m => m.id))
+                const merged = [...mapped]
+                for (const pm of pend) {
+                  if (!existing.has(pm.id)) merged.push(pm)
+                }
+                merged.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+                setMessages(merged)
+              }
+              sessionStorage.removeItem(`pending_conv_messages_${id}`)
+            }
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.error('Open conversation error:', e)
+      setServerUnavailable(true)
+      setMessages([
+        {
+          id: 'error-1',
+          content: 'Không thể kết nối đến server để tải lịch sử hội thoại. Vui lòng kiểm tra kết nối và thử lại.',
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ])
+    }
+  }
+
+  useEffect(() => {
+    if (!initialConversationId) {
+      setMessages([
+        {
+          id: '1',
+          content:
+            'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ])
+      setConversationId(null)
+    }
+  }, [initialConversationId])
+
+  const renameConversation = async (id: string, title: string) => {
+    if (!authToken || String(id).startsWith('conv-')) {
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`conv_title_${id}`, title)
+          loadLocalConversations()
+        }
+      } catch {}
+      return
+    }
+    try {
+      const resp = await fetch(`http://127.0.0.1:8000/v1/conversations/${id}/title`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ title })
+      })
+      if (resp.ok) {
+        await fetchConversations()
+      }
+    } catch (e) {
+      console.error('Rename conversation error:', e)
+    }
+  }
+
+  const deleteConversation = async (id: string) => {
+    if (!authToken || String(id).startsWith('conv-')) {
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`conv_messages_${id}`)
+          localStorage.removeItem(`conv_title_${id}`)
+          setConversations((prev) => prev.filter((c) => c.id !== id))
+          if (conversationId === id) {
+            setConversationId(null)
+            setMessages([
+              {
+                id: '1',
+                content:
+                  'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+                isUser: false,
+                timestamp: new Date(),
+              },
+            ])
+          }
+        }
+      } catch {}
+      return
+    }
+    try {
+      const resp = await fetch(`http://127.0.0.1:8000/v1/conversations/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+      if (resp.ok || resp.status === 404) {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(`conv_messages_${id}`)
+            localStorage.removeItem(`conv_title_${id}`)
+          } catch {}
+        }
+        setConversations((prev) => prev.filter((c) => c.id !== id))
+        if (conversationId === id) {
+          setConversationId(null)
+          setMessages([
+            {
+              id: '1',
+              content:
+                'Xin chào! Tôi là trợ lý AI y tế được huấn luyện chuyên biệt. Tôi có thể giúp bạn tìm hiểu về các vấn đề sức khỏe. Bạn có câu hỏi gì không?',
+              isUser: false,
+              timestamp: new Date(),
+            },
+          ])
+        }
+      }
+    } catch (e) {
+      console.error('Delete conversation error:', e)
+    }
+  }
+
+  useEffect(() => {
+    if (authToken && initialConversationId && !initRef.current.opened) {
+      initRef.current.opened = true
+      openConversation(initialConversationId)
+      setTimeout(() => { initRef.current.opened = false }, 500)
+    }
+  }, [authToken, initialConversationId])
+
+  useEffect(() => {
+    if (!authToken && initialConversationId) {
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = localStorage.getItem(`conv_messages_${initialConversationId}`)
+          if (raw) {
+            const arr = JSON.parse(raw)
+            const mapped: Message[] = Array.isArray(arr) ? arr.map((m: any) => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: new Date(m.timestamp) })) : []
+            if (mapped.length) {
+              setMessages(mapped)
+              setConversationId(initialConversationId)
+            }
+          }
+        }
+      } catch {}
+    }
+  }, [authToken, initialConversationId])
+
+  useEffect(() => {
+    if (!authToken) {
+      loadLocalConversations()
+    }
+  }, [authToken])
+
+  useEffect(() => {
+    if (authToken && !initRef.current.fetched) {
+      initRef.current.fetched = true
+      fetchConversations()
+      setTimeout(() => { initRef.current.fetched = false }, 500)
+    }
+  }, [authToken])
+
+  
+
+  useEffect(() => {
+    if (!authToken && conversationId) {
+      try {
+        if (typeof window !== 'undefined') {
+          const serial = messages.map(m => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: m.timestamp.toISOString() }))
+          localStorage.setItem(`conv_messages_${conversationId}`, JSON.stringify(serial))
+          const titleKey = `conv_title_${conversationId}`
+          const existingTitle = localStorage.getItem(titleKey) || ''
+          if (!existingTitle) {
+            const lastUser = [...messages].reverse().find(m => m.isUser && m.content && m.content.trim())
+            if (lastUser) {
+              const first6 = lastUser.content.trim().split(/\s+/).slice(0, 6).join(' ')
+              localStorage.setItem(titleKey, first6)
+            }
+          }
+          loadLocalConversations()
+        }
+      } catch {}
+    }
+  }, [messages, authToken, conversationId])
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        if (conversationId && typeof window !== 'undefined') {
+          const toStore = messages.map(m => ({ id: String(m.id), content: String(m.content), isUser: !!m.isUser, timestamp: m.timestamp.toISOString() }))
+          sessionStorage.setItem(`pending_conv_messages_${conversationId}`, JSON.stringify(toStore))
+        }
+      } catch {}
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', handler)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeunload', handler)
+      }
+    }
+  }, [messages, conversationId])
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-blue-50/50 to-white">
-      {/* Medical Disclaimer */}
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 m-4 mb-3 shadow-sm">
-        <div className="flex items-start space-x-3">
-          <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-            <AlertTriangle className="h-4 w-4 text-white" />
+    <div className="flex h-screen overflow-hidden hero-gradient" suppressHydrationWarning style={{ paddingTop: headerPad }}>
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đổi tên hội thoại</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input value={renameInput} onChange={(e) => setRenameInput(e.target.value)} placeholder="Nhập tiêu đề" />
           </div>
-          <div className="text-sm">
-            <p className="text-amber-800 font-medium mb-1">
-              Lưu ý quan trọng
-            </p>
-            <p className="text-amber-700 text-xs leading-relaxed">
-              Thông tin này chỉ mang tính chất tham khảo. Vui lòng tham khảo ý kiến bác sĩ chuyên khoa để được chẩn đoán và điều trị chính xác.
-            </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsRenameOpen(false); setRenameTargetId(null) }}>Hủy</Button>
+            <Button onClick={async () => { if (renameTargetId && renameInput.trim()) { await renameConversation(renameTargetId, renameInput.trim()); setIsRenameOpen(false); setRenameTargetId(null) } }}>Lưu</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {showSidebar && (
+        <div className="w-64 glass-panel bg-gray-50/50 p-0 flex-shrink-0 h-full flex flex-col rounded-r-2xl backdrop-blur-md">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-sm font-medium text-gray-700">Hội thoại</span>
+            <div className="flex items-center space-x-2">
+              <button onClick={() => setSidebarSearchOpen(!sidebarSearchOpen)} className="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+                <Search className="h-4 w-4 text-gray-700" />
+              </button>
+              <button onClick={beginNewConversation} className="h-8 w-8 rounded-full bg-blue-500 text-white flex items-center justify-center shadow hover:bg-blue-600">
+                <Plus className="h-4 w-4" />
+              </button>
+              <button onClick={fetchConversations} className="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+                <RefreshCcw className="h-4 w-4 text-gray-700" />
+              </button>
+              <button onClick={() => setShowSidebar(false)} className="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+                <ChevronLeft className="h-4 w-4 text-gray-700" />
+              </button>
+            </div>
+          </div>
+          {sidebarSearchOpen && (
+            <div className="px-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  placeholder="Lọc hội thoại..."
+                  className="w-full pl-8 pr-8 py-1.5 text-xs rounded-xl border border-gray-200 focus:border-blue-400 outline-none bg-white/60"
+                />
+                {sidebarSearch && (
+                  <button onClick={() => setSidebarSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                    x
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+            {isLoadingConversations ? (
+              <div className="text-xs text-gray-500">Đang tải...</div>
+            ) : (
+              serverUnavailable ? (
+                <div className="text-xs text-red-600">Không kết nối được với server</div>
+              ) : (
+                (sidebarSearch ? conversations.filter(c => (c.title || '').toLowerCase().includes(sidebarSearch.toLowerCase())) : conversations).length
+                  ? (sidebarSearch ? conversations.filter(c => (c.title || '').toLowerCase().includes(sidebarSearch.toLowerCase())) : conversations).map((c) => (
+                    <div key={c.id} className={`group flex items-center justify-between p-2 rounded-xl ${conversationId === c.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-100'}`}>
+                      <button className="text-left text-sm flex-1 pr-2" onClick={() => openConversation(c.id)}>
+                        {c.title || 'Chưa có tiêu đề'}
+                      </button>
+                      <div className="hidden group-hover:flex items-center gap-2">
+                        <button className="h-7 w-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center" onClick={() => { setRenameTargetId(c.id); setRenameInput(c.title || ''); setIsRenameOpen(true) }}>
+                          <Sparkles className="h-3.5 w-3.5 text-gray-700" />
+                        </button>
+                        <button className="h-7 w-7 rounded-full bg-red-500 text-white flex items-center justify-center" onClick={() => deleteConversation(c.id)}>
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                  : <div className="text-xs text-gray-500">Chưa có hội thoại</div>
+              )
+            )}
           </div>
         </div>
-      </div>
+      )}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {!showSidebar && (
+          <div className="p-2">
+            <button onClick={() => setShowSidebar(true)} className="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">Mở lịch sử</button>
+          </div>
+        )}
+      {/* Input and actions moved to bottom */}
+      {/* Medical Disclaimer */}
+      {!disclaimerDismissed && (
+        isDisclaimerCollapsed ? (
+          <div className="mx-4 mb-3">
+            <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 bg-amber-500 rounded-md flex items-center justify-center">
+                  <AlertTriangle className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-[11px] font-medium text-amber-800">Lưu ý quan trọng</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setIsDisclaimerCollapsed(false)} className="text-[11px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded hover:bg-amber-200">Mở</button>
+                <button onClick={() => { setDisclaimerDismissed(true); try { localStorage.setItem('dismiss_disclaimer', '1') } catch {} }} className="text-[11px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded hover:bg-amber-200">Ẩn</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 m-4 mb-3 shadow-sm">
+            <div className="flex items-start space-x-3">
+              <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <AlertTriangle className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-sm flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-amber-800 font-medium">Lưu ý quan trọng</p>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setIsDisclaimerCollapsed(true)} className="text-[11px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded hover:bg-amber-200">Thu nhỏ</button>
+                    <button onClick={() => { setDisclaimerDismissed(true); try { localStorage.setItem('dismiss_disclaimer', '1') } catch {} }} className="text-[11px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded hover:bg-amber-200">Ẩn</button>
+                  </div>
+                </div>
+                <p className="text-amber-700 text-xs leading-relaxed mt-1">
+                  Thông tin này chỉ mang tính chất tham khảo. Vui lòng tham khảo ý kiến bác sĩ chuyên khoa để được chẩn đoán và điều trị chính xác.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Messages Container */}
       <div 
-        className="flex-1 overflow-y-auto px-4 pb-4"
+        className="flex-1 overflow-y-auto px-4 min-h-0"
         style={{ 
           scrollBehavior: 'smooth',
-          WebkitOverflowScrolling: 'touch'
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain'
         }}
       >
+        <div className="space-y-2">
         {messages.map((message, index) => (
           <div
             key={index}
@@ -380,15 +1240,20 @@ export function ChatInterface() {
             )}
             
             <div
-              className={`max-w-[80%] rounded-lg px-3 py-2 ${
+              className={`max-w-[80%] px-3 py-2 shadow-[0px_2px_6px_rgba(0,0,0,0.05)] ${
                 message.isUser
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  ? 'bg-blue-500 text-white rounded-tl-[12px] rounded-tr-[12px] rounded-bl-[12px] rounded-br-[4px]'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-tl-[12px] rounded-tr-[12px] rounded-br-[12px] rounded-bl-[4px]'
               }`}
+              style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
             >
-              <p className="text-sm whitespace-pre-wrap">
-                {message.content}
-              </p>
+              {message.isUser ? (
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+              ) : (
+                <div className="text-sm prose prose-sm dark:prose-invert leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                </div>
+              )}
               {!message.isUser && (
                 <div className="flex justify-end mt-2 space-x-1">
                   {/* Nút Play/Pause */}
@@ -447,89 +1312,137 @@ export function ChatInterface() {
               <div className="flex-shrink-0 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                 <Bot className="h-3 w-3 text-white" />
               </div>
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2">
-                <div className="flex items-center space-x-2">
-                  <div className="flex space-x-1">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Đang trả lời...</span>
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-tl-[12px] rounded-tr-[12px] rounded-br-[12px] rounded-bl-[4px] px-3 py-2 shadow-[0px_2px_6px_rgba(0,0,0,0.05)]">
+                <div className="text-sm text-gray-700 dark:text-gray-200">
+                  <span>Đang trả lời</span>
+                  <span className="inline-block w-[8px] h-[16px] align-middle bg-gray-600 dark:bg-gray-300 ml-1 animate-pulse"></span>
                 </div>
               </div>
             </div>
           </div>
         )}
+        </div>
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Questions */}
-      {messages.length === 1 && (
-        <div className="px-4 pb-3 flex-shrink-0">
-          <div className="grid grid-cols-1 gap-2">
-            {suggestedQuestions.map((question, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestedQuestion(question)}
-                className="text-left p-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-200 transition-all duration-200 shadow-sm active:scale-95"
-                style={{ 
-                  WebkitTapHighlightColor: 'transparent',
-                  touchAction: 'manipulation'
-                }}
-              >
-                {question}
-              </button>
-            ))}
-          </div>
+      {/* Bottom input and actions (anchored inside chat container) */}
+      <div className="flex-shrink-0 p-4 glass-panel border-t border-slate-200 relative z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onDragOver={handleDragOver} onDrop={handleDrop}>
+        <div className="max-w-3xl mx-auto px-2">
+        <div className="mb-2 flex flex-wrap gap-2">
+          {suggestedQuestions.slice(0, 4).map((q, i) => (
+            <button
+              key={i}
+              onClick={() => handleSuggestedQuestion(q)}
+              className="px-3 py-1.5 rounded-2xl bg-gray-100 text-gray-700 text-xs hover:bg-blue-100 border border-gray-200 hover:border-blue-200 transition-all duration-200"
+            >
+              {q}
+            </button>
+          ))}
         </div>
-      )}
-
-      {/* Input Section */}
-      <div className="p-4 bg-white/95 backdrop-blur-sm border-t border-gray-100 flex-shrink-0">
-        <div className="flex space-x-3">
+        {selectedImageBase64 && (
+          <div className="mb-3">
+            <div className="relative inline-block">
+              <img
+                src={`data:${selectedImageMime || 'image/*'};base64,${selectedImageBase64}`}
+                alt={selectedImageName || 'Ảnh xem trước'}
+                className="h-24 w-24 md:h-28 md:w-28 rounded-xl object-cover shadow border border-gray-200"
+              />
+              <button
+                onClick={handleRemoveImage}
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-gray-800 text-white flex items-center justify-center shadow hover:bg-red-600"
+                title="Xóa ảnh"
+                aria-label="Xóa ảnh"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="rounded-[24px] bg-white shadow-[0px_4px_12px_rgba(0,0,0,0.1)] px-4 py-2 flex items-center gap-2 hover:scale-[1.02] transition-transform">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
             placeholder="Nhập câu hỏi của bạn..."
-            className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm"
-            style={{ 
-              WebkitTapHighlightColor: 'transparent'
-            }}
+            className="flex-1 border-0 focus:ring-0 focus:outline-none text-sm bg-transparent"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
             disabled={isLoading}
           />
-          
-          {/* Nút ghi âm */}
-          <button
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isLoading}
-            className={`px-3 py-3 rounded-2xl transition-all duration-200 shadow-md active:scale-95 ${
-              isRecording
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={isRecording ? 'Dừng ghi âm' : 'Bắt đầu ghi âm'}
-            style={{ 
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation'
-            }}
-          >
-            <Mic className={`h-4 w-4 ${isRecording ? 'animate-pulse' : ''}`} />
-          </button>
-          
           <button
             onClick={handleSubmit}
-            disabled={!input.trim() || isLoading}
-            className="px-5 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md active:scale-95"
-            style={{ 
-              WebkitTapHighlightColor: 'transparent',
-              touchAction: 'manipulation'
-            }}
+            disabled={( !input.trim() && !selectedImageBase64) || isLoading}
+            className="px-5 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm active:scale-95"
+            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
           >
             <Send className="h-4 w-4" />
           </button>
         </div>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowTools(!showTools)}
+              className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all duration-200 shadow-sm"
+            >
+              +
+            </button>
+            {showTools && (
+              <div className="flex items-center space-x-2">
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-2 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200"
+                >
+                  Thêm ảnh
+                </button>
+                <input ref={docInputRef} type="file" accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={handleDocChange} />
+                <button
+                  onClick={() => docInputRef.current?.click()}
+                  className="px-3 py-2 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200"
+                >
+                  Thêm PDF/DOC
+                </button>
+                {selectedImageName && <span className="text-xs text-gray-600">Ảnh: {selectedImageName}</span>}
+                {selectedDocName && <span className="text-xs text-gray-600">Tài liệu: {selectedDocName}</span>}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value as 'flash' | 'pro')}
+              className="px-3 py-2 border border-gray-200 rounded-2xl text-sm bg-white"
+            >
+              <option value="flash">flash</option>
+              <option value="pro">pro</option>
+            </select>
+            <button
+              onClick={startNewConversation}
+              className="px-3 py-2 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200"
+            >
+              new
+            </button>
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isLoading}
+              className={`px-3 py-2 rounded-2xl transition-all duration-200 shadow-md active:scale-95 ${
+                isRecording ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              title={isRecording ? 'Dừng ghi âm' : 'Bắt đầu ghi âm'}
+            >
+              <Mic className={`h-4 w-4 ${isRecording ? 'animate-pulse' : ''}`} />
+            </button>
+            <button
+              onClick={() => router.push('/speech-chat')}
+              className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all duration-200 shadow-sm"
+              title="Chuyển sang Speech-to-Speech"
+            >
+              <img src="/icon-speech-to-speech.png" alt="Speech-to-Speech" className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        </div>
+      </div>
       </div>
     </div>
   )
