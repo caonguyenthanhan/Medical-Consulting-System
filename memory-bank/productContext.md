@@ -52,7 +52,22 @@
 - Nhận đề xuất liệu pháp tự nhiên
 - Quyết định có nên đến bác sĩ hay không
 
-## Giá trị cốt lõi
+## Giá trị cốt lõi (3 Pillars)
+
+### 1. Kiến trúc Hybrid (GPU-CPU Fallback)
+- **Tối ưu hạ tầng**: Giải quyết bài toán tài nguyên hạn chế tại Việt Nam.
+- **Smart Routing**: Thuật toán định tuyến thông minh giữa Cloud (Intelligence) và Local (Offline).
+- **High Availability**: Hệ thống tự phục hồi, đảm bảo hoạt động liên tục ngay cả khi mất kết nối.
+
+### 2. Bản địa hóa sâu (Vietnamese Medical Localization)
+- **Dữ liệu thực tế**: Tinh chỉnh trên dataset y tế Việt Nam, không chỉ dịch thuật.
+- **Hiểu thuật ngữ dân gian**: Xử lý tốt các từ địa phương (trúng gió, giời leo).
+- **Tên thuốc nội địa**: Nhận diện chính xác thuốc đang lưu hành tại Việt Nam qua RAG.
+
+### 3. Tích hợp Sàng lọc tâm lý & Bạn tâm giao
+- **Toàn diện**: Kết hợp Y tế thể chất và Sức khỏe tâm thần.
+- **Thực tiễn**: Số hóa thang đo PHQ-9, GAD-7 vào hội thoại tự nhiên.
+- **Nhân văn**: Tạo cảm giác được lắng nghe và thấu hiểu.
 
 ### Cho người dùng
 - **Tiết kiệm thời gian**: Tư vấn nhanh chóng 24/7

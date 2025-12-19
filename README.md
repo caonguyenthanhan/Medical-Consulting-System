@@ -2,6 +2,26 @@
 
 Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra cứu thông tin sức khỏe, sàng lọc tâm lý và tư vấn sơ bộ dựa trên kiến trúc Hybrid AI (kết hợp xử lý CPU cục bộ và GPU đám mây).
 
+## 🏆 3 Trụ Cột Cốt Lõi (Project Pillars)
+
+Dự án được xây dựng dựa trên 3 trụ cột công nghệ và sáng tạo, giải quyết các bài toán thực tế:
+
+### 1. Kiến trúc Hybrid (GPU-CPU Fallback)
+> **Giải pháp tối ưu cho bối cảnh hạ tầng Việt Nam.**
+*   **Đóng góp chính**: Thuật toán **Smart Routing** (Định tuyến thông minh).
+*   **Giá trị**: Hệ thống không chỉ chạy AI mà còn có khả năng **tự phục hồi** khi mất kết nối máy chủ Cloud. Cơ chế Fallback đảm bảo tính sẵn sàng cao (**High Availability**) - Chatbot vẫn hoạt động (mode offline) ngay cả khi mất mạng hoặc GPU Server sập.
+
+### 2. Bản địa hóa sâu (Vietnamese Medical Localization)
+> **Hiểu người Việt hơn GPT-4.**
+*   **Khác biệt**: Hệ thống được tinh chỉnh trên tập dữ liệu y tế tiếng Việt thực tế, không chỉ dịch thuật máy móc.
+*   **Năng lực RAG**: Khả năng hiểu các **thuật ngữ dân gian** (như *"trúng gió"*, *"giời leo"*, *"nổi mề đay"*) và nhận diện chính xác **tên thuốc nội địa** đang lưu hành tại Việt Nam thông qua cơ chế RAG (Retrieval-Augmented Generation).
+
+### 3. Tích hợp Sàng lọc tâm lý & Bạn tâm giao
+> **Chăm sóc toàn diện: Thể chất & Tinh thần.**
+*   **Vấn đề**: Đa số chatbot y tế hiện nay chỉ tập trung tư vấn triệu chứng vật lý.
+*   **Giải pháp**: Đề tài nổi bật ở việc kết hợp **Y tế thể chất + Sức khỏe tâm thần**.
+*   **Thực tiễn**: Số hóa các thang đo chuẩn y khoa (**PHQ-9**, **GAD-7**) vào hội thoại tự nhiên, giúp phát hiện sớm dấu hiệu trầm cảm/lo âu một cách tinh tế và riêng tư.
+
 ## 🚀 Tính Năng Nổi Bật
 
 - **Tư vấn đa phương thức**: Hỗ trợ chat văn bản, giọng nói (Speech-to-Text/Text-to-Speech) và hình ảnh (Vision).
@@ -122,7 +142,8 @@ medical-consulting-system/
 - **Bảo mật**: Không chia sẻ file `.env` hoặc URL Ngrok công khai.
 
 ## 👥 Tác Giả
-Đồ án Tốt nghiệp - Hệ thống Tư vấn Y tế AI
+Tiểu Luận Chuyên Ngành - Hệ thống Tư vấn Y tế AI
+- **GVHD** - TS. PHAN THỊ HUYỀN TRANG
 
 - **21110116** - Cao Nguyễn Thành An (Leader)
 - **21144449** - Cao Thọ Phú Thịnh
