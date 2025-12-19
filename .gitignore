@@ -65,3 +65,7 @@ medical-consultation-app/data/server-registry-logs.jsonl
 # OS
 .DS_Store
 Thumbs.db
+
+# Trae & Jupyter artifacts
+.trae/
+.ipynb_checkpoints/
