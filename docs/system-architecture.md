@@ -1,113 +1,131 @@
-# Kiến trúc Hệ thống Tư vấn Y tế AI
+# Kiến trúc Hệ thống Tư vấn Y tế AI (System Architecture)
 
-Tài liệu này mô tả chi tiết luồng dữ liệu và cơ chế xử lý của hệ thống, phản ánh chính xác mã nguồn hiện tại. Hệ thống sử dụng kiến trúc Hybrid linh hoạt giữa Next.js (Frontend/Gateway), Local FastAPI (CPU/Controller), và Cloud Colab (GPU/Intelligence).
+Tài liệu này mô hình hóa kiến trúc hệ thống dựa trên **Ngân hàng bộ nhớ (Memory Bank)** và mã nguồn thực tế. Hệ thống được thiết kế theo mô hình **Hybrid AI**, kết hợp sức mạnh xử lý tức thời của Local CPU và khả năng tri thức sâu rộng của Cloud GPU.
+
+## Sơ đồ Kiến trúc Tổng quan (Mermaid Chart)
 
 ```mermaid
 flowchart TD
-    %% Định nghĩa Style
+    %% --- ĐỊNH NGHĨA STYLE ---
     classDef user fill:#f9f,stroke:#333,stroke-width:2px,color:black;
     classDef frontend fill:#d4e1f5,stroke:#333,stroke-width:2px,color:black;
     classDef gateway fill:#ffe6cc,stroke:#333,stroke-width:2px,color:black;
     classDef local_backend fill:#d5e8d4,stroke:#82b366,stroke-width:2px,color:black;
     classDef cloud_backend fill:#f8cecc,stroke:#b85450,stroke-width:2px,color:black;
-    classDef db fill:#e1d5e7,stroke:#9673a6,stroke-width:2px,color:black;
+    classDef data fill:#e1d5e7,stroke:#9673a6,stroke-width:2px,color:black;
 
-    %% User Interaction
+    %% --- 1. USER INTERACTION ---
     User((👤 Người dùng)):::user
-    
-    %% Frontend Layer
-    subgraph Frontend ["🖥️ Frontend (Next.js 14)"]
-        UI[Giao diện UI/UX]:::frontend
-        ChatComp[Chat Interface<br/>(Tư vấn & Tâm sự)]:::frontend
-        LookupComp[Health Lookup<br/>(Tra cứu Thuốc/Bệnh)]:::frontend
+
+    %% --- 2. FRONTEND LAYER (Next.js 14) ---
+    subgraph Frontend ["🖥️ Frontend Layer (Next.js 14 App Router)"]
+        direction TB
+        UI_Core[Giao diện Chính]:::frontend
         
-        UI --> ChatComp
-        UI --> LookupComp
+        subgraph Components ["Functional Components"]
+            ChatComp[💬 Chat Interface<br/>(Tư vấn & Tâm sự)]:::frontend
+            LookupComp[💊 Health Lookup<br/>(Tra cứu Thuốc/Bệnh)]:::frontend
+            PsychComp[🧠 Psychological Screening<br/>(Sàng lọc PHQ-9/GAD-7)]:::frontend
+            MultiModal[📷 Speech & Vision<br/>(Voice Chat / Phân tích ảnh)]:::frontend
+        end
+        
+        UI_Core --> ChatComp
+        UI_Core --> LookupComp
+        UI_Core --> PsychComp
+        UI_Core --> MultiModal
     end
+    
+    User <--> UI_Core
 
-    User <--> UI
-
-    %% API Gateway Layer (Next.js)
-    subgraph Gateway ["🚪 API Gateway (Next.js Routes)"]
+    %% --- 3. API GATEWAY LAYER (Next.js API Routes) ---
+    subgraph Gateway ["🚪 API Gateway Layer"]
+        direction TB
         RouteChat[POST /api/llm-chat<br/>POST /api/tam-su-chat]:::gateway
-        RouteLookup[POST /api/health-lookup<br/>GET /api/health-db/*]:::gateway
+        RouteLookup[POST /api/health-lookup]:::gateway
+        RouteSpeech[POST /api/speech-chat]:::gateway
         
-        SmartRouting{⚙️ Smart Routing<br/>(runtime-mode.json)}:::gateway
+        Router{⚙️ Smart Routing<br/>(runtime-mode.json)}:::gateway
     end
 
     ChatComp --> RouteChat
+    PsychComp --> RouteChat
     LookupComp --> RouteLookup
-    RouteChat --> SmartRouting
+    MultiModal --> RouteSpeech
+    
+    RouteChat --> Router
+    RouteSpeech --> Router
 
-    %% Local Backend Layer (Python)
-    subgraph Local_Server ["🏠 Local Backend (server.py)"]
-        FastAPI_Local[FastAPI Server]:::local_backend
+    %% --- 4. LOCAL BACKEND LAYER (CPU) ---
+    subgraph Local_System ["🏠 Local Backend System (server.py)"]
+        FastAPI_Local[FastAPI Controller]:::local_backend
         
-        subgraph Local_Services [Local Services]
-            Local_LLM[CPU LLM Service<br/>(Llama-cpp Quantized)]:::local_backend
-            Lookup_Logic[Health Controller<br/>(Logic Tra cứu)]:::local_backend
-            JSON_DB[(benh.json / thuoc.json)]:::db
-            Local_RAG[Local RAG<br/>(LangChain + Chroma)]:::local_backend
-            TTS_Proxy[TTS/STT Proxy]:::local_backend
+        subgraph Local_Intelligence ["Local Intelligence (CPU)"]
+            Local_LLM[🤖 Local LLM Service<br/>(Llama-3.2-1B Quantized)]:::local_backend
+            Local_RAG[📚 Local RAG Engine<br/>(LangChain + ChromaDB)]:::local_backend
+            Lookup_Engine[🔎 Lookup Logic<br/>(Offline-First)]:::local_backend
+            Data_JSON[(📂 benh.json / thuoc.json)]:::data
         end
-        
-        FastAPI_Local --> Local_LLM
-        FastAPI_Local --> Lookup_Logic
-        FastAPI_Local --> TTS_Proxy
-        Lookup_Logic --> JSON_DB
-        Lookup_Logic -.-> Local_RAG
     end
 
-    %% Cloud Backend Layer (GPU)
-    subgraph Cloud_Server ["☁️ Cloud Backend (Colab GPU)"]
-        Ngrok[Ngrok Tunnel]:::cloud_backend
-        GPU_Service[GPU AI Service<br/>(Llama-3 Full / Llava / TTS)]:::cloud_backend
+    %% --- 5. CLOUD BACKEND LAYER (GPU) ---
+    subgraph Cloud_System ["☁️ Cloud Backend System (Google Colab)"]
+        Ngrok_Tunnel[Ngrok Secure Tunnel]:::cloud_backend
         
-        Ngrok --> GPU_Service
+        subgraph Cloud_Intelligence ["Cloud Intelligence (T4 GPU)"]
+            GPU_LLM[🧠 Advanced LLM Service<br/>(Llama-3 Full / Fine-tuned)]:::cloud_backend
+            Vision_Model[👁️ Vision Model<br/>(Llava v1.5)]:::cloud_backend
+            TTS_Engine[🗣️ TTS/STT Engine<br/>(Fast Whisper / XTTS)]:::cloud_backend
+        end
     end
 
-    %% Routing Flows
-    
-    %% Flow 1: Chat / Friend / Vision (Smart Routing)
-    SmartRouting -- "Mode: GPU" --> Ngrok
-    SmartRouting -- "Mode: CPU / Error" --> FastAPI_Local
-    
-    %% Flow 2: Health Lookup (Controller Flow)
+    %% --- DATA FLOWS & CONNECTIONS ---
+
+    %% Flow 1: Smart Routing (Chat / Speech / Vision)
+    Router -- "Mode: GPU (Priority)" --> Ngrok_Tunnel
+    Router -- "Mode: CPU / Fallback" --> FastAPI_Local
+
+    %% Flow 2: Health Lookup (Controller Pattern)
     RouteLookup --> FastAPI_Local
-    Lookup_Logic -- "1. Check Local JSON" --> JSON_DB
-    Lookup_Logic -- "2. Not Found (Proxy)" --> Ngrok
-    Lookup_Logic -- "3. Error/Fallback" --> Local_RAG
+    FastAPI_Local --> Lookup_Engine
+    Lookup_Engine -- "1. Check Static Data" --> Data_JSON
+    Lookup_Engine -- "2. Not Found (Proxy)" --> Ngrok_Tunnel
+    Lookup_Engine -- "3. Fallback RAG" --> Local_RAG
 
-    %% Fallback Link for Chat
-    Ngrok -.-> |"❌ Error / Timeout"| FastAPI_Local
-
-    %% Note
-    note1[Luồng Chat: Next.js tự định tuyến]
-    note2[Luồng Tra cứu: Server.py làm trung tâm điều phối]
+    %% Flow 3: Cloud Processing
+    Ngrok_Tunnel --> GPU_LLM
+    Ngrok_Tunnel --> Vision_Model
+    Ngrok_Tunnel --> TTS_Engine
     
-    style note1 fill:#fff2cc,stroke:#d6b656
-    style note2 fill:#fff2cc,stroke:#d6b656
+    %% Flow 4: Local Processing
+    FastAPI_Local --> Local_LLM
+    
+    %% Fallback Mechanism
+    Ngrok_Tunnel -.-> |"❌ Connection Lost"| FastAPI_Local
+
 ```
 
-### Giải thích chi tiết các luồng dữ liệu
+## Giải thích chi tiết các thành phần (Theo Memory Bank)
 
-#### 1. Luồng Tư vấn AI & Bạn Tâm Giao (Smart Routing Flow)
-*   **Điểm vào**: `/api/llm-chat` hoặc `/api/tam-su-chat`.
-*   **Logic**: Next.js đọc cấu hình `runtime-mode.json`.
-    *   **Trường hợp 1 (GPU Mode)**: Next.js gọi trực tiếp đến URL Ngrok của GPU Server. Đây là đường đi ngắn nhất để giảm độ trễ.
-    *   **Trường hợp 2 (CPU Mode / Fallback)**: Nếu cấu hình là CPU hoặc gọi GPU thất bại, Next.js sẽ chuyển hướng gọi về `http://127.0.0.1:8000` (Local Server).
-    *   **Local Server**: Sử dụng `llama-cpp-python` để chạy các model nén (Quantized) như Llama-3-1B, đảm bảo hệ thống vẫn hoạt động khi mất mạng.
+### 1. Frontend Layer (Next.js)
+Được xây dựng dựa trên **Next.js 14 App Router**, đảm nhiệm vai trò giao diện người dùng và điều phối logic hiển thị.
+*   **Chat Interface**: Giao diện chat chính, hỗ trợ các chế độ `Flash` (nhanh), `Pro` (thông minh), và `Tâm sự` (bạn bè).
+*   **Health Lookup**: Module tra cứu y khoa chuyên biệt, ưu tiên dữ liệu tĩnh để phản hồi tức thì.
+*   **Psychological Screening**: Các bài test PHQ-9/GAD-7 để đánh giá sức khỏe tinh thần, kết quả có thể được dùng làm đầu vào cho Chat Interface tư vấn tiếp.
+*   **Speech & Vision**: Module đa phương thức mới, cho phép chat bằng giọng nói (STT/TTS) và gửi ảnh để AI phân tích (Vision Chat).
 
-#### 2. Luồng Tra cứu Y tế (Controller Flow)
-*   **Điểm vào**: `/api/health-lookup` hoặc `/api/health-db/*`.
-*   **Logic**: Next.js **LUÔN** gọi về Local Server (`server.py`).
-*   **Tại sao?**: Vì dữ liệu nền (thuốc, bệnh) được lưu trữ cục bộ dưới dạng JSON để đảm bảo tốc độ và tính sẵn sàng offline.
-*   **Quy trình xử lý tại Local Server**:
-    1.  **Kiểm tra JSON Local**: Tìm kiếm trong `benh.json`, `thuoc.json`. Nếu có -> Trả về ngay.
-    2.  **Proxy lên GPU**: Nếu không tìm thấy trong Local JSON và đang ở chế độ GPU -> Gọi lên GPU Server để AI trả lời sâu hơn.
-    3.  **Fallback RAG**: Nếu GPU lỗi hoặc đang ở chế độ Offline -> Sử dụng Local RAG (LangChain + ChromaDB) để tra cứu trong dữ liệu vector nội bộ.
+### 2. API Gateway & Smart Routing
+Lớp trung gian xử lý logic định tuyến thông minh:
+*   **Smart Routing**: Dựa vào file cấu hình `runtime-mode.json` để quyết định request sẽ được xử lý ở đâu.
+*   **Cơ chế Fallback**: Tự động chuyển từ GPU về CPU nếu kết nối Cloud bị gián đoạn, đảm bảo tính sẵn sàng cao (High Availability).
 
-#### 3. Các thành phần dữ liệu
-*   **JSON Files (`data/*.json`)**: Chứa dữ liệu tĩnh về thuốc và bệnh, cho phép tra cứu cực nhanh mà không cần AI.
-*   **Runtime Config (`runtime-mode.json`)**: "Trái tim" của hệ thống routing, quyết định xem request sẽ đi đâu.
-*   **Logs (`runtime-events.jsonl`)**: Ghi lại mọi sự kiện chuyển đổi mode, lỗi fallback để debug.
+### 3. Local Backend (CPU - Offline Capable)
+Hoạt động trên máy cá nhân người dùng, đảm bảo các tính năng cơ bản luôn hoạt động ngay cả khi không có Internet hoặc GPU Server.
+*   **Local LLM**: Sử dụng `llama-cpp-python` chạy model nén (`Llama-3.2-1B-Instruct-Q6_K_L.gguf`), đủ nhẹ để chạy trên CPU thường.
+*   **Lookup Engine**: Logic tra cứu ưu tiên tìm trong file JSON (`benh.json`, `thuoc.json`) trước khi hỏi AI, giúp phản hồi cực nhanh.
+*   **Local RAG**: Hệ thống tìm kiếm vector (ChromaDB) giúp AI trả lời dựa trên dữ liệu y tế đã được index.
+
+### 4. Cloud Backend (GPU - Intelligence)
+Chạy trên Google Colab (hoặc server GPU rời), cung cấp sức mạnh xử lý cho các tác vụ nặng.
+*   **Advanced LLM**: Chạy các model lớn hơn, đầy đủ hơn (Full precision hoặc ít nén hơn) cho câu trả lời sâu sắc.
+*   **Vision Model**: Sử dụng `llava-v1.5-7b` để "nhìn" và hiểu hình ảnh thuốc/bệnh lý.
+*   **TTS/STT Engine**: Xử lý giọng nói chất lượng cao với độ trễ thấp.
