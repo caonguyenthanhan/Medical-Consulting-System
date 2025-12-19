@@ -36,7 +36,11 @@ Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra 
 ![Fallback Mechanism](screenshots/fallback-mechanism.png)
 *Sơ đồ luồng xử lý lỗi và cơ chế tự động chuyển đổi giữa GPU (Cloud) và CPU (Local)*
 
-> 📘 **Chi tiết kỹ thuật**: Xem sơ đồ kiến trúc hệ thống đầy đủ tại [docs/system-architecture.md](docs/system-architecture.md).
+### 5. Kiến trúc Hệ thống Tổng quan (System Architecture)
+![AI Healthcare Advisory System Architecture](screenshots/AI-Healthcare-Advisory.png)
+*Sơ đồ tổng quan các phân hệ chức năng và luồng dữ liệu (Mermaid Chart)*
+
+> 📘 **Chi tiết kỹ thuật**: Xem tài liệu kiến trúc đầy đủ và mã nguồn Mermaid tại [docs/system-architecture.md](docs/system-architecture.md).
 
 ## 🛠️ Công Nghệ Sử Dụng
 

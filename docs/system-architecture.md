@@ -1,6 +1,6 @@
 # Kiến trúc Hệ thống Tư vấn Y tế AI (System Architecture)
 
-Tài liệu này mô hình hóa kiến trúc hệ thống dựa trên **Ngân hàng bộ nhớ (Memory Bank)** và mã nguồn thực tế. Hệ thống được thiết kế theo mô hình **Hybrid AI**, kết hợp sức mạnh xử lý tức thời của Local CPU và khả năng tri thức sâu rộng của Cloud GPU.
+Hệ thống được thiết kế theo mô hình **Hybrid AI**, kết hợp sức mạnh xử lý tức thời của Local CPU và khả năng tri thức sâu rộng của Cloud GPU.
 
 ## Sơ đồ Kiến trúc Tổng quan (Mermaid Chart)
 
@@ -15,18 +15,18 @@ flowchart TD
     classDef data fill:#e1d5e7,stroke:#9673a6,stroke-width:2px,color:black;
 
     %% --- 1. USER INTERACTION ---
-    User((👤 Người dùng)):::user
+    User(("👤 Người dùng")):::user
 
     %% --- 2. FRONTEND LAYER (Next.js 14) ---
     subgraph Frontend ["🖥️ Frontend Layer (Next.js 14 App Router)"]
         direction TB
-        UI_Core[Giao diện Chính]:::frontend
+        UI_Core["Giao diện Chính"]:::frontend
         
         subgraph Components ["Functional Components"]
-            ChatComp[💬 Chat Interface<br/>(Tư vấn & Tâm sự)]:::frontend
-            LookupComp[💊 Health Lookup<br/>(Tra cứu Thuốc/Bệnh)]:::frontend
-            PsychComp[🧠 Psychological Screening<br/>(Sàng lọc PHQ-9/GAD-7)]:::frontend
-            MultiModal[📷 Speech & Vision<br/>(Voice Chat / Phân tích ảnh)]:::frontend
+            ChatComp["💬 Chat Interface<br/>(Tư vấn & Tâm sự)"]:::frontend
+            LookupComp["💊 Health Lookup<br/>(Tra cứu Thuốc/Bệnh)"]:::frontend
+            PsychComp["🧠 Psychological Screening<br/>(Sàng lọc PHQ-9/GAD-7)"]:::frontend
+            MultiModal["📷 Speech & Vision<br/>(Voice Chat / Phân tích ảnh)"]:::frontend
         end
         
         UI_Core --> ChatComp
@@ -40,11 +40,11 @@ flowchart TD
     %% --- 3. API GATEWAY LAYER (Next.js API Routes) ---
     subgraph Gateway ["🚪 API Gateway Layer"]
         direction TB
-        RouteChat[POST /api/llm-chat<br/>POST /api/tam-su-chat]:::gateway
-        RouteLookup[POST /api/health-lookup]:::gateway
-        RouteSpeech[POST /api/speech-chat]:::gateway
+        RouteChat["POST /api/llm-chat<br/>POST /api/tam-su-chat"]:::gateway
+        RouteLookup["POST /api/health-lookup"]:::gateway
+        RouteSpeech["POST /api/speech-chat"]:::gateway
         
-        Router{⚙️ Smart Routing<br/>(runtime-mode.json)}:::gateway
+        Router{"⚙️ Smart Routing<br/>(runtime-mode.json)"}:::gateway
     end
 
     ChatComp --> RouteChat
@@ -57,24 +57,24 @@ flowchart TD
 
     %% --- 4. LOCAL BACKEND LAYER (CPU) ---
     subgraph Local_System ["🏠 Local Backend System (server.py)"]
-        FastAPI_Local[FastAPI Controller]:::local_backend
+        FastAPI_Local["FastAPI Controller"]:::local_backend
         
         subgraph Local_Intelligence ["Local Intelligence (CPU)"]
-            Local_LLM[🤖 Local LLM Service<br/>(Llama-3.2-1B Quantized)]:::local_backend
-            Local_RAG[📚 Local RAG Engine<br/>(LangChain + ChromaDB)]:::local_backend
-            Lookup_Engine[🔎 Lookup Logic<br/>(Offline-First)]:::local_backend
-            Data_JSON[(📂 benh.json / thuoc.json)]:::data
+            Local_LLM["🤖 Local LLM Service<br/>(Llama-3.2-1B Quantized)"]:::local_backend
+            Local_RAG["📚 Local RAG Engine<br/>(LangChain + ChromaDB)"]:::local_backend
+            Lookup_Engine["🔎 Lookup Logic<br/>(Offline-First)"]:::local_backend
+            Data_JSON[("📂 benh.json / thuoc.json")]:::data
         end
     end
 
     %% --- 5. CLOUD BACKEND LAYER (GPU) ---
     subgraph Cloud_System ["☁️ Cloud Backend System (Google Colab)"]
-        Ngrok_Tunnel[Ngrok Secure Tunnel]:::cloud_backend
+        Ngrok_Tunnel["Ngrok Secure Tunnel"]:::cloud_backend
         
         subgraph Cloud_Intelligence ["Cloud Intelligence (T4 GPU)"]
-            GPU_LLM[🧠 Advanced LLM Service<br/>(Llama-3 Full / Fine-tuned)]:::cloud_backend
-            Vision_Model[👁️ Vision Model<br/>(Llava v1.5)]:::cloud_backend
-            TTS_Engine[🗣️ TTS/STT Engine<br/>(Fast Whisper / XTTS)]:::cloud_backend
+            GPU_LLM["🧠 Advanced LLM Service<br/>(Llama-3 Full / Fine-tuned)"]:::cloud_backend
+            Vision_Model["👁️ Vision Model<br/>(Llava v1.5)"]:::cloud_backend
+            TTS_Engine["🗣️ TTS/STT Engine<br/>(Fast Whisper / XTTS)"]:::cloud_backend
         end
     end
 
@@ -101,7 +101,6 @@ flowchart TD
     
     %% Fallback Mechanism
     Ngrok_Tunnel -.-> |"❌ Connection Lost"| FastAPI_Local
-
 ```
 
 ## Giải thích chi tiết các thành phần (Theo Memory Bank)
