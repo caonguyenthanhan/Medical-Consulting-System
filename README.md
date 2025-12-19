@@ -12,7 +12,31 @@ Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra 
 - **Sàng lọc Tâm lý**: Tích hợp các bài test chuẩn y khoa (PHQ-9, GAD-7) để đánh giá sức khỏe tinh thần.
 - **Chế độ Offline**: Tự động chuyển về xử lý cục bộ khi mất kết nối Internet hoặc Server GPU.
 
-## 🛠️ Công Nghệ Sử Dụng
+## � Giao Diện & Demo
+
+### 1. Tổng quan & Tính năng chính
+| Trang Chủ | Tư Vấn AI |
+|:---:|:---:|
+| ![Trang Chủ](screenshots/trang-chu.png) | ![Tư Vấn](screenshots/tu-van.png) |
+| **Giao diện chính trực quan** | **Chatbot hỗ trợ đa phương thức** |
+
+### 2. Tiện ích Y tế
+| Tra Cứu Thuốc | Sàng Lọc Tâm Lý |
+|:---:|:---:|
+| ![Tra Cứu](screenshots/tra-cuu.png) | ![Sàng Lọc](screenshots/sang-loc.png) |
+| **Tra cứu thông tin dược phẩm** | **Bài test PHQ-9/GAD-7** |
+
+### 3. Tính năng Nâng cao
+| Phân Tích Hình Ảnh | Bạn Tâm Giao |
+|:---:|:---:|
+| ![Vision AI](screenshots/phan-tich-hinh-anh.png) | ![Companion](screenshots/ban-tam-giao.png) |
+| **Chẩn đoán sơ bộ qua ảnh** | **Trò chuyện cảm xúc** |
+
+### 4. Cơ chế hoạt động (Hybrid Architecture)
+![Fallback Mechanism](screenshots/fallback-mechanism.png)
+*Sơ đồ luồng xử lý lỗi và cơ chế tự động chuyển đổi giữa GPU (Cloud) và CPU (Local)*
+
+## �🛠️ Công Nghệ Sử Dụng
 
 ### Frontend
 - **Framework**: Next.js 14 (App Router)
