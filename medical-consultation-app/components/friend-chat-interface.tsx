@@ -23,9 +23,16 @@ interface Message {
 }
 
 export function FriendChatInterface({ initialConversationId }: { initialConversationId?: string }) {
-  const greeting = useMemo(() => {
-    const idx = Math.floor(Math.random() * GREETINGS.length)
-    return GREETINGS[idx]
+  const [greeting, setGreeting] = useState(GREETINGS[0])
+  useEffect(() => {
+    const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)]
+    setGreeting(randomGreeting)
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].id === "1" && !prev[0].isUser) {
+        return [{ ...prev[0], content: randomGreeting }]
+      }
+      return prev
+    })
   }, [])
   const [headerPad, setHeaderPad] = useState<string>('6rem')
   useEffect(() => {
@@ -352,17 +359,31 @@ export function FriendChatInterface({ initialConversationId }: { initialConversa
       let newId = typeof (data as any).conversation_id === "string" && (data as any).conversation_id ? (data as any).conversation_id : (ensuredId || conversationId)
       if (newId && typeof window !== "undefined") {
         setConversationId(newId)
+        
+        // Explicitly save messages to localStorage (Standardization with ChatInterface)
+        if (!authToken) {
+          try {
+            const snapshot = [...messages, userMessage, aiMessage]
+            const toStore = snapshot.map(m => ({ id: m.id, content: m.content, isUser: m.isUser, timestamp: m.timestamp.toISOString() }))
+            localStorage.setItem(`friend_conv_messages_${newId}`, JSON.stringify(toStore))
+          } catch {}
+        }
+
         try {
+          // Standard naming logic
           const baseText = messageText.trim() || aiResponse.trim()
           const words = baseText.split(/\s+/).slice(0, 6).join(" ")
           const title = words || "Tâm sự"
           localStorage.setItem(`friend_conv_title_${newId}`, title)
           setCurrentTitle(title)
+          
           const url = new URL(window.location.href)
           url.pathname = "/tam-su"
           url.searchParams.set("id", newId)
           window.history.replaceState(null, "", url.toString())
         } catch {}
+        
+        loadLocalFriendConversations()
       }
     } catch (error) {
       const fallbackMessage: Message = {
@@ -730,11 +751,19 @@ export function FriendChatInterface({ initialConversationId }: { initialConversa
                 ))}
               </div>
               <div className="rounded-[24px] bg-white shadow-[0px_4px_12px_rgba(0,0,0,0.1)] px-4 py-2 flex items-center gap-2 hover:scale-[1.02] transition-transform">
-                <Input
+                <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
                   placeholder="Bạn đang nghĩ gì, nói với mình nhé..."
-                  className="flex-1 border-0 focus:ring-0 focus:outline-none text-sm bg-transparent"
+                  className="flex-1 border-0 focus:ring-0 focus:outline-none text-sm bg-transparent resize-none py-2 max-h-32 overflow-y-auto"
+                  rows={1}
+                  style={{ minHeight: '40px' }}
                   disabled={isLoading}
                 />
                 <button

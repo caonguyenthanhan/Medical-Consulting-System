@@ -1,14 +1,14 @@
 {
   "global": {
     "target": "gpu",
-    "model": "flash",
-    "updated_at": "2025-12-16T14:36:08.976617",
+    "model": "pro",
+    "updated_at": "2025-12-21T20:11:35.483595",
     "gpu_url": "https://miyoko-trichomonadal-reconditely.ngrok-free.dev"
   },
   "users": {
     "admin": {
-      "model": "flash",
-      "updated_at": "2025-12-16T14:36:08.976617",
+      "model": "pro",
+      "updated_at": "2025-12-21T20:11:35.483595",
       "target": "gpu",
       "gpu_url": "https://miyoko-trichomonadal-reconditely.ngrok-free.dev"
     }

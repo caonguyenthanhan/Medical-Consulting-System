@@ -69,10 +69,27 @@ export async function POST(request: NextRequest) {
     const personaText = typeof systemPromptOverride === 'string' && systemPromptOverride.trim()
       ? systemPromptOverride.trim()
       : (() => {
+          const BASE_SYSTEM_PROMPT = `Bạn là Trợ lý Y tế AI (Medical Consultant AI). Nhiệm vụ của bạn là cung cấp thông tin y tế hữu ích, chính xác và an toàn bằng Tiếng Việt.
+
+NGUYÊN TẮC QUAN TRỌNG:
+1. AN TOÀN LÀ TRÊN HẾT: Luôn khuyến cáo người dùng đi khám bác sĩ hoặc đến cơ sở y tế nếu có dấu hiệu nghiêm trọng. Không đưa ra chẩn đoán khẳng định hoặc kê đơn thuốc thay thế bác sĩ.
+2. KHÁCH QUAN & KHOA HỌC: Dựa trên kiến thức y khoa đã được kiểm chứng.
+3. NGÔN NGỮ: Sử dụng Tiếng Việt chuẩn mực, dễ hiểu, giọng điệu ân cần, chuyên nghiệp.
+4. TỪ CHỐI TRẢ LỜI: Nếu câu hỏi không liên quan đến y tế/sức khỏe hoặc vi phạm đạo đức, hãy lịch sự từ chối hoặc lái về chủ đề y tế.`
+
           const p = (typeof persona === 'string' && persona.trim()) ? persona.trim() : (typeof role === 'string' && role.trim() ? role.trim() : '')
-          const base = `You are a medical consultation assistant. Provide helpful, safe, and culturally appropriate answers in Vietnamese.`
-          if (p) return `${base} Act as: ${p}. Context: ${determinedContext}`
-          return `${base} Context: ${determinedContext}`
+          
+          let specificInstruction = ""
+          if (determinedContext === 'psychological support') {
+             specificInstruction = "CONTEXT: Hỗ trợ tâm lý. Hãy lắng nghe, thấu cảm, không phán xét. Gợi ý các phương pháp giảm căng thẳng lành mạnh."
+          } else if (determinedContext === 'health lookup') {
+             specificInstruction = "CONTEXT: Tra cứu thông tin y tế. Cung cấp thông tin ngắn gọn, súc tích, chính xác."
+          } else {
+             specificInstruction = `CONTEXT: ${determinedContext}`
+          }
+
+          if (p) return `${BASE_SYSTEM_PROMPT}\n\nVAI TRÒ CỤ THỂ: ${p}.\n${specificInstruction}`
+          return `${BASE_SYSTEM_PROMPT}\n${specificInstruction}`
         })()
     const systemPrompt = personaText
     const selectedModel = (typeof model === 'string' ? model.toLowerCase() : 'flash')

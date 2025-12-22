@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import List, Optional
 import os
@@ -50,6 +51,16 @@ try:
     import jwt
 except Exception:
     jwt = None
+
+try:
+    import pypdf
+except ImportError:
+    pypdf = None
+
+try:
+    import docx
+except ImportError:
+    docx = None
 
 # Import audio utilities
 try:
@@ -143,7 +154,15 @@ def _current_target():
     except Exception:
         pass
     return "gpu"
-app = FastAPI(title="Local LLaMA Chat API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    await _setup_event_loop_handler()
+    await load_model()
+    yield
+
+app = FastAPI(title="Local LLaMA Chat API", version="1.0.0", lifespan=lifespan)
 
 # CORS for Next.js dev
 app.add_middleware(
@@ -160,7 +179,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
 async def _setup_event_loop_handler():
     try:
         loop = asyncio.get_running_loop()
@@ -221,6 +239,12 @@ class VisionChatRequest(BaseModel):
     image_base64: str
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 512
+
+class DocumentChatRequest(BaseModel):
+    text: str
+    doc_base64: str
+    doc_name: str
+    model: Optional[str] = "flash"
 
 class VisionChatResponse(BaseModel):
     success: bool
@@ -464,7 +488,6 @@ def generate_auto_title(user_text: str, ai_text: str) -> str:
     except Exception:
         return _normalize(simple)
 
-@app.on_event("startup")
 async def load_model():
     print(f"Checking PRO model: {PRO_MODEL_PATH}")
     print(f"PRO exists: {os.path.exists(PRO_MODEL_PATH)}")
@@ -706,7 +729,9 @@ async def chat_completions(req: ChatRequest, request: Request):
     history = load_chat_history(user_id, conversation_id)
     base_messages = [{"role": m.role, "content": m.content} for m in (req.messages or [])]
     if not base_messages:
-        sys_msg = (req.system or "Bạn là trợ lý tư vấn y tế an toàn, trả lời bằng tiếng Việt.").strip()
+        default_sys = """Bạn là Trợ lý Y tế AI. Nhiệm vụ của bạn là cung cấp thông tin y tế hữu ích, chính xác và an toàn bằng Tiếng Việt.
+Lưu ý: Luôn khuyến cáo người dùng đi khám bác sĩ nếu có dấu hiệu nghiêm trọng. Không đưa ra chẩn đoán khẳng định thay thế bác sĩ."""
+        sys_msg = (req.system or default_sys).strip()
         user_text = (req.prompt or req.question or req.message or "").strip()
         if sys_msg:
             base_messages = [{"role": "system", "content": sys_msg}, {"role": "user", "content": user_text}]
@@ -1991,6 +2016,105 @@ async def vision_chat(req: VisionChatRequest):
         return VisionChatResponse(success=True, response=response_text)
     except Exception as e:
         return VisionChatResponse(success=False, error=f"Error processing vision chat: {str(e)}")
+
+def _extract_text_from_doc(doc_base64: str, doc_name: str) -> str:
+    import base64
+    import io
+    
+    try:
+        decoded = base64.b64decode(doc_base64)
+        file_stream = io.BytesIO(decoded)
+        ext = doc_name.split('.')[-1].lower()
+        
+        text = ""
+        if ext == 'pdf':
+            if pypdf:
+                reader = pypdf.PdfReader(file_stream)
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+            else:
+                return "Error: pypdf library not found."
+        elif ext in ['docx', 'doc']:
+            if docx:
+                doc = docx.Document(file_stream)
+                for para in doc.paragraphs:
+                    text += para.text + "\n"
+            else:
+                return "Error: python-docx library not found."
+        else:
+            # Try text decode for other formats
+            try:
+                text = decoded.decode('utf-8')
+            except:
+                return "Error: Unsupported document format."
+                
+        return text.strip()
+    except Exception as e:
+        return f"Error extracting text: {str(e)}"
+
+@app.post("/v1/document-chat")
+async def document_chat(req: DocumentChatRequest):
+    if not req.doc_base64 or not req.text:
+        raise HTTPException(status_code=400, detail="doc_base64 and text are required")
+    
+    # Check if GPU is available and proxy if needed
+    base_url = _get_proxy_base()
+    if base_url:
+        try:
+            gpu_url = f"{base_url}/v1/document-chat"
+            print(f"Proxying document-chat to GPU: {gpu_url}")
+            # Add ngrok-skip-browser-warning header
+            headers = {"ngrok-skip-browser-warning": "true"}
+            resp = requests.post(gpu_url, json=req.dict(), headers=headers, timeout=120)
+            
+            # DEBUG: Print GPU response for troubleshooting
+            print(f"GPU Response Status: {resp.status_code}")
+            try:
+                print(f"GPU Response Body Preview: {resp.text[:200]}")
+            except:
+                pass
+
+            if resp.ok:
+                return resp.json()
+            else:
+                # If GPU fails, fallback to local
+                print(f"GPU proxy failed ({resp.status_code}), falling back to local processing.")
+        except Exception as e:
+            print(f"GPU proxy error: {e}, falling back to local processing.")
+
+    # Extract text from document (Local Fallback)
+    doc_text = _extract_text_from_doc(req.doc_base64, req.doc_name)
+    if doc_text.startswith("Error:"):
+        return VisionChatResponse(success=False, error=doc_text)
+        
+    # Construct prompt
+    full_prompt = f"Tài liệu đính kèm ({req.doc_name}):\n\n{doc_text}\n\n---\n\nCâu hỏi của người dùng: {req.text}"
+    
+    # Delegate to chat/completions logic
+    try:
+        chat_req = ChatRequest(
+            model=req.model,
+            messages=[
+                ChatMessage(role="system", content="Bạn là trợ lý AI hữu ích. Hãy trả lời câu hỏi dựa trên tài liệu được cung cấp."),
+                ChatMessage(role="user", content=full_prompt)
+            ]
+        )
+        
+        # Use local loopback to reuse chat logic
+        local_url = "http://127.0.0.1:8000/v1/chat/completions"
+        resp = requests.post(local_url, json=chat_req.dict(), timeout=120)
+        
+        if resp.ok:
+            data = resp.json()
+            content = ""
+            if "choices" in data:
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return VisionChatResponse(success=True, response=content)
+        else:
+            return VisionChatResponse(success=False, error=f"Chat error: {resp.text}")
+            
+    except Exception as e:
+        return VisionChatResponse(success=False, error=str(e))
 
 @app.post("/v1/login")
 async def login(req: LoginRequest):

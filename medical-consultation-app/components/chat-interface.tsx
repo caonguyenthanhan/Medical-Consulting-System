@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Send, AlertTriangle, Bot, User, Sparkles, Volume2, Pause, Play, Square, Mic, Image as ImageIcon, X, Plus, RefreshCcw, ChevronLeft, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { } from "@/lib/llm-config"
@@ -65,6 +66,8 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const sendingRef = useRef<boolean>(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const docInputRef = useRef<HTMLInputElement | null>(null)
 
   // Smart suggestion system based on context and conversation history
   const getSmartSuggestions = () => {
@@ -323,7 +326,7 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
   }
 
   const handleSubmit = async () => {
-    if (((!input.trim()) && !selectedImageBase64) || sendingRef.current) return
+    if (((!input.trim()) && !selectedImageBase64 && !selectedDocContent) || sendingRef.current) return
 
     const currentInput = input
     setInput("")
@@ -363,6 +366,40 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
         setSelectedImageName(null)
         setSelectedImageMime(null)
         if (fileInputRef.current) fileInputRef.current.value = ''
+      } else if (selectedDocContent) {
+        // Xử lý tài liệu (PDF/DOC)
+        const parts: string[] = []
+        if (currentInput.trim()) parts.push(`Nội dung: ${currentInput}`)
+        if (selectedDocName) parts.push(`Đã đính kèm tài liệu: ${selectedDocName}`)
+        
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: parts.join('\n'),
+          isUser: true,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, userMessage])
+
+        const resp = await fetch('http://127.0.0.1:8000/v1/document-chat', {
+          method: 'POST',
+          headers: authToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` } : { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: currentInput, doc_base64: selectedDocContent, doc_name: selectedDocName })
+        })
+
+        const data = await resp.json()
+        const aiText = data?.response || 'Không nhận được phản hồi từ hệ thống.'
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          content: aiText,
+          isUser: false,
+          timestamp: new Date(),
+        }
+        setMessages((prev) => [...prev, aiMsg])
+        await fetchConversations()
+
+        setSelectedDocContent(null)
+        setSelectedDocName(null)
+        if (docInputRef.current) docInputRef.current.value = ''
       } else {
         await sendMessageToAI(currentInput)
       }
@@ -609,11 +646,10 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
   };
 
   // Image upload & VLM
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const docInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null)
   const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null)
   const [selectedImageMime, setSelectedImageMime] = useState<string | null>(null)
+  const [selectedDocContent, setSelectedDocContent] = useState<string | null>(null)
   const [authToken, setAuthToken] = useState<string | null>(null)
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -650,7 +686,14 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
   const handleDocChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setSelectedDocName(file.name)
+    try {
+      const base64 = await fileToBase64(file)
+      setSelectedDocContent(base64)
+      setSelectedDocName(file.name)
+    } catch (err) {
+      console.error('Error reading doc:', err)
+      alert('Không thể đọc tài liệu.')
+    }
   }
   useEffect(() => {
     try {
@@ -718,6 +761,12 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
     setSelectedImageName(null)
     setSelectedImageMime(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleRemoveDoc = () => {
+    setSelectedDocContent(null)
+    setSelectedDocName(null)
+    if (docInputRef.current) docInputRef.current.value = ''
   }
 
   const handleSuggestedQuestion = (question: string) => {
@@ -1358,20 +1407,45 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
             </div>
           </div>
         )}
+        {selectedDocName && (
+          <div className="mb-3">
+            <div className="relative inline-block bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 pr-8 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-blue-100 rounded-lg">
+                  <span className="text-xs font-bold text-blue-600">DOC</span>
+                </div>
+                <span className="text-sm text-blue-800 font-medium truncate max-w-[150px]">{selectedDocName}</span>
+              </div>
+              <button
+                onClick={handleRemoveDoc}
+                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-gray-800 text-white flex items-center justify-center shadow hover:bg-red-600"
+                title="Xóa tài liệu"
+                aria-label="Xóa tài liệu"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="rounded-[24px] bg-white shadow-[0px_4px_12px_rgba(0,0,0,0.1)] px-4 py-2 flex items-center gap-2 hover:scale-[1.02] transition-transform">
-          <input
-            type="text"
+          <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit() } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             placeholder="Nhập câu hỏi của bạn..."
-            className="flex-1 border-0 focus:ring-0 focus:outline-none text-sm bg-transparent"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
+            className="flex-1 border-0 focus:ring-0 focus:outline-none text-sm bg-transparent resize-none py-2 max-h-32 overflow-y-auto"
+            style={{ WebkitTapHighlightColor: 'transparent', minHeight: '40px' }}
             disabled={isLoading}
+            rows={1}
           />
           <button
             onClick={handleSubmit}
-            disabled={( !input.trim() && !selectedImageBase64) || isLoading}
+            disabled={( !input.trim() && !selectedImageBase64 && !selectedDocContent) || isLoading}
             className="px-5 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm active:scale-95"
             style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
           >
@@ -1441,9 +1515,9 @@ export function ChatInterface({ initialConversationId }: { initialConversationId
             </button>
           </div>
         </div>
-        </div>
-      </div>
       </div>
     </div>
+  </div>
+</div>
   )
 }

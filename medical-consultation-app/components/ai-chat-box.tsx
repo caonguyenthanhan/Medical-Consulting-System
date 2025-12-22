@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Textarea } from "./ui/textarea"
 
 interface Message {
   id: string
@@ -135,6 +136,7 @@ export function AiChatBox({
                   </div>
                 )}
                 <p
+                  suppressHydrationWarning
                   className={`text-xs mt-1 opacity-70 ${message.isUser ? "text-primary-foreground" : "text-muted-foreground"}`}
                 >
                   {message.timestamp.toLocaleTimeString("vi-VN", {
@@ -171,14 +173,20 @@ export function AiChatBox({
 
       {/* Input */}
       <div className="p-3 border-t border-border">
-        <div className="flex gap-2">
-          <Input
+        <div className="flex gap-2 items-end">
+          <Textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder={placeholder}
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            className="flex-1"
+            placeholder={placeholder || "Nhập tin nhắn..."}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                handleSendMessage()
+              }
+            }}
+            className="flex-1 min-h-[40px] max-h-[120px] resize-none"
             disabled={isLoading}
+            rows={1}
           />
           <Button onClick={handleSendMessage} size="icon" disabled={isLoading || !inputValue.trim()}>
             <Send className="h-4 w-4" />
