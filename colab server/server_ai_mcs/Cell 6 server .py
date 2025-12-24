@@ -54,6 +54,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "gpu", "version": "2.1.0"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 ocr_engine = None
 ocr_last_error = None
 ocr_backend = None
@@ -578,6 +586,75 @@ async def chat_simple(req: dict, x_mode: Optional[str] = Header(None)):
         return {"reply": ""}
     except:
         return {"reply": ""}
+
+@app.post("/v1/friend-chat/completions")
+async def friend_chat_completions(req: ChatRequest, x_mode: Optional[str] = Header(None)):
+    try:
+        if not isinstance(x_mode, str):
+            x_mode = None
+        msgs = req.messages or []
+        question = ""
+        for m in reversed(msgs):
+            if getattr(m, "role", "").lower() == "user":
+                question = getattr(m, "content", "")
+                break
+        if not question and msgs:
+            last = msgs[-1]
+            question = getattr(last, "content", "")
+        mode = (x_mode or req.mode or "pro").lower()
+        friend_prompt = (
+            "Bạn là một người bạn thân, nói chuyện đời thường bằng tiếng Việt.\n"
+            "Cách nói tự nhiên, gần gũi, có thể hài hước nhẹ, dùng từ ngữ bình dân.\n\n"
+            "Nguyên tắc:\n"
+            "- Ưu tiên lắng nghe và đồng cảm trước.\n"
+            "- Không giảng đạo lý, không nói như sách vở.\n"
+            "- Không khuyên dạy ngay, trừ khi người dùng hỏi rõ.\n"
+            "- Phản hồi giống người thật đang trò chuyện, không phải trợ lý máy móc.\n"
+            "- Có thể hỏi lại 1 câu ngắn để hiểu thêm cảm xúc người nói.\n\n"
+            "Tránh:\n"
+            "- Nói quá dài.\n"
+            "- Dùng từ ngữ học thuật.\n"
+            "- Kết luận thay người dùng.\n"
+        )
+        use_lora = _ensure_friend_lora()
+        if use_lora and friend_lora_model is not None and friend_lora_tokenizer is not None:
+            text = friend_prompt + "\n\nNgười dùng: " + (question or "")
+            inputs = friend_lora_tokenizer(text, return_tensors="pt").to(friend_lora_model.device)
+            with torch.no_grad():
+                output = friend_lora_model.generate(
+                    **inputs,
+                    max_new_tokens=req.max_tokens,
+                    temperature=req.temperature,
+                    do_sample=True if req.temperature and req.temperature > 0 else False
+                )
+            response_text = friend_lora_tokenizer.decode(output[0], skip_special_tokens=True)
+        else:
+            input_text = chat_tokenizer.apply_chat_template(
+                [{"role": "system", "content": friend_prompt}, {"role": "user", "content": question}],
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            inputs = chat_tokenizer(input_text, return_tensors="pt").to("cuda")
+            with torch.no_grad():
+                output = chat_model.generate(
+                    **inputs,
+                    max_new_tokens=req.max_tokens,
+                    temperature=req.temperature,
+                    do_sample=True if req.temperature and req.temperature > 0 else False,
+                    pad_token_id=chat_tokenizer.eos_token_id
+                )
+            response_text = chat_tokenizer.decode(output[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True)
+            del inputs, output
+            torch.cuda.empty_cache()
+        return {
+            "id": f"chatcmpl-{uuid.uuid4()}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}],
+            "mode": mode
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # ==============================
 # 🚀 KHỞI CHẠY SERVER

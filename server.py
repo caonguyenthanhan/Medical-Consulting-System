@@ -117,7 +117,7 @@ def _get_proxy_base():
                 return cand[0].get("url", LLAMA_SERVER_URL)
     except Exception:
         pass
-    default_gpu = os.environ.get("DEFAULT_GPU_URL", "https://elissa-villous-scourgingly.ngrok-free.dev")
+    default_gpu = os.environ.get("DEFAULT_GPU_URL", "https://miyoko-trichomonadal-reconditely.ngrok-free.dev")
     return default_gpu or LLAMA_SERVER_URL
 
 _LB_INDEX = 0
@@ -929,7 +929,7 @@ async def friend_chat_completions(req: ChatRequest, request: Request):
             )
             if not proxied.ok:
                 fallback = requests.post(
-                    f"{base.rstrip('/')}/v1/chat",
+                    f"{base.rstrip('/')}/v1/chat/completions",
                     headers=headers,
                     data=json.dumps({"messages": payload["messages"], "mode": mode_sel}),
                     timeout=60,

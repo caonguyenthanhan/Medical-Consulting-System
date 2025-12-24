@@ -17,11 +17,13 @@
 - **Verification:**
   - **Colab Log:** Server khởi chạy thành công, log rõ ràng. Khi dừng cell, log hiện thông báo tắt server gọn gàng.
   - **Local Log:** Proxy hoạt động ổn định, chuyển hướng request tốt.
+ - **Documentation:** README đã được cập nhật cho Windows/PowerShell, bổ sung danh sách endpoint GPU và hướng dẫn header Ngrok.
 
 ## Next Steps
 - Tiếp tục theo dõi độ ổn định của kết nối Ngrok.
 - Kiểm tra tính năng Vision Chat với ảnh.
 - Rà soát lại logic xử lý file (PDF/Word) nếu có phản hồi lỗi từ người dùng.
+ - Đồng bộ tài liệu và mã nguồn lên GitHub sau khi kiểm thử.
 
 ## Active Decisions
 - **Async Strategy:** Sử dụng `nest_asyncio` là giải pháp bắt buộc để chạy uvicorn trong Colab notebook cell.

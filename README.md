@@ -85,14 +85,14 @@ Dự án được xây dựng dựa trên 3 trụ cột công nghệ và sáng t
 
 ### 1. Cài đặt Backend (Local Server)
 
-```bash
+```powershell
 # Tại thư mục gốc của dự án
 pip install -r requirements.txt
 ```
 
 ### 2. Cài đặt Frontend
 
-```bash
+```powershell
 cd medical-consultation-app
 npm install
 ```
@@ -102,7 +102,7 @@ npm install
 ### Bước 1: Khởi chạy Backend (Local API)
 Mở một terminal tại thư mục gốc và chạy:
 
-```bash
+```powershell
 python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload
 ```
 *Server sẽ chạy tại: `http://127.0.0.1:8000`*
@@ -110,7 +110,7 @@ python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload
 ### Bước 2: Khởi chạy Frontend
 Mở một terminal khác tại thư mục `medical-consultation-app` và chạy:
 
-```bash
+```powershell
 cd medical-consultation-app
 npm run dev
 ```
@@ -121,7 +121,23 @@ npm run dev
 1. Upload thư mục `DB_ALL` và notebook `server_AI_MCS.ipynb` lên Google Drive.
 2. Mở notebook trên Google Colab, kết nối GPU (T4).
 3. Chạy các cell để khởi động server và lấy **Ngrok URL**.
-4. Cập nhật URL vào file `medical-consultation-app/data/runtime-mode.json` hoặc nhập trực tiếp trên giao diện Web.
+4. Cập nhật URL vào file `medical-consultation-app/data/runtime-mode.json` (trường `gpu_url`) hoặc nhập trực tiếp trên giao diện Web.
+
+### Cấu hình GPU & Headers
+- Khi gọi tới Colab Ngrok, luôn thêm header `ngrok-skip-browser-warning: true` để tránh trang cảnh báo.
+- Các endpoint GPU hỗ trợ:
+  - `POST /v1/chat/completions` (Tư vấn y tế)
+  - `POST /v1/friend-chat/completions` (Tâm sự bạn bè)
+  - `POST /v1/document-chat` (Phân tích tài liệu PDF/DOC)
+  - `POST /v1/vision-multi` (Phân tích hình ảnh)
+  - `GET /v1/benh`, `GET /v1/thuoc` (Danh mục dữ liệu y khoa)
+  - `GET /gpu/metrics` (Thông tin GPU cho hiển thị trạng thái)
+
+### Đồng bộ chế độ xử lý
+- Nguồn sự thật: `medical-consultation-app/data/runtime-mode.json` với các trường:
+  - `target`: `"gpu"` hoặc `"cpu"`
+  - `gpu_url`: URL Ngrok Colab, ví dụ: `https://miyoko-trichomonadal-reconditely.ngrok-free.dev`
+  - `updated_at`: thời điểm cập nhật
 
 ## 📂 Cấu Trúc Thư Mục
 

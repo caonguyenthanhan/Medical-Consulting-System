@@ -431,3 +431,32 @@
 {"ts": "2025-12-21T20:11:35.330474", "type": "model_change", "model": "flash"}
 {"ts": "2025-12-21T20:11:35.375150", "type": "model_change", "model": "flash"}
 {"ts": "2025-12-21T20:11:35.483595", "type": "model_change", "model": "pro"}
+{"type":"mode_change","target":"cpu","ts":"2025-12-24T05:19:32.185Z"}
+{"type": "mode_change", "target": "cpu", "gpu_url": null, "ts": "2025-12-24T05:19:32.214553"}
+{"type": "cpu_model_loading", "tier": "pro", "ts": "2025-12-24T05:19:39.259932"}
+{"type": "cpu_model_loaded", "tier": "pro", "ts": "2025-12-24T05:19:41.880181"}
+{"ts": "2025-12-24T09:54:02.864986", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:54:02.875981", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:54:02.971863", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:54:02.975987", "type": "model_change", "model": "pro"}
+{"ts": "2025-12-24T09:54:02.992516", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:54:03.021918", "type": "model_change", "model": "pro"}
+{"type": "cpu_model_loading", "tier": "pro", "ts": "2025-12-24T09:54:16.635935"}
+{"type": "cpu_model_loaded", "tier": "pro", "ts": "2025-12-24T09:54:20.064616"}
+{"type":"mode_change","target":"cpu","ts":"2025-12-24T09:55:44.353Z"}
+{"type": "mode_change", "target": "cpu", "gpu_url": null, "ts": "2025-12-24T09:55:44.371190"}
+{"ts": "2025-12-24T09:55:44.391080", "type": "mode_change", "target": "cpu", "gpu_url": null}
+{"ts": "2025-12-24T09:56:07.225520", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:56:07.228868", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:56:07.252200", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:58:23.875110", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:58:23.885362", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T09:58:23.950599", "type": "model_change", "model": "flash"}
+{"type":"mode_change","target":"gpu","gpu_url":"https://miyoko-trichomonadal-reconditely.ngrok-free.dev","ts":"2025-12-24T10:02:04.207Z"}
+{"type": "mode_change", "target": "gpu", "gpu_url": "https://miyoko-trichomonadal-reconditely.ngrok-free.dev", "ts": "2025-12-24T10:02:04.219761"}
+{"ts": "2025-12-24T10:02:04.238743", "type": "mode_change", "target": "gpu", "gpu_url": "https://miyoko-trichomonadal-reconditely.ngrok-free.dev"}
+{"ts": "2025-12-24T10:02:10.625647", "type": "model_change", "model": "pro"}
+{"ts": "2025-12-24T10:22:19.063378", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T10:22:19.073184", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T10:22:19.144344", "type": "model_change", "model": "flash"}
+{"ts": "2025-12-24T10:22:19.216782", "type": "model_change", "model": "pro"}

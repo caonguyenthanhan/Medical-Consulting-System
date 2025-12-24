@@ -7,10 +7,12 @@
 - [x] Server AI cơ bản trên Colab
 - [x] **Sửa lỗi Server AI (Logging & File Reading)**
 - [x] **Sửa lỗi Server Startup trên Colab & Ngrok Headers**
+ - [x] **Cập nhật README (PowerShell, GPU endpoints, Ngrok header)**
 
 ## In Progress
 - [ ] Tối ưu hóa độ trễ khi gọi GPU
 - [ ] Cải thiện UI hiển thị file đính kèm
+ - [ ] Đẩy mã nguồn và tài liệu lên GitHub
 
 ## Known Issues
 - Ngrok connection thỉnh thoảng không ổn định (cần cập nhật URL thủ công).
