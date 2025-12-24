@@ -11,6 +11,7 @@
   - **Nest Asyncio:** Thêm cơ chế kiểm tra và cài đặt `nest_asyncio` tự động nếu thiếu, đảm bảo `loop.run_until_complete` hoạt động đúng.
   - **Error Handling:** Bổ sung try-except chi tiết cho khối khởi chạy server để log lỗi rõ ràng.
   - **Fix SyntaxError:** Thay thế `await server.serve()` bằng `loop.run_until_complete(server.serve())` khi chạy trong loop có sẵn.
+  - **Feature:** Bổ sung endpoint `POST /v1/health-lookup` vào `Cell 6 server .py` để khắc phục lỗi 404 khi tra cứu thuốc/bệnh.
 - **Backend (Server Local - server.py):**
   - **Ngrok Header:** Đã kiểm tra và xác nhận header `ngrok-skip-browser-warning: true` đã có mặt trong tất cả các request proxy.
   - **Clean Code:** Thay thế `on_event("startup")` (deprecated) bằng `lifespan` handler để tránh cảnh báo DeprecationWarning.

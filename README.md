@@ -128,6 +128,7 @@ npm run dev
 - Các endpoint GPU hỗ trợ:
   - `POST /v1/chat/completions` (Tư vấn y tế)
   - `POST /v1/friend-chat/completions` (Tâm sự bạn bè)
+  - `POST /v1/health-lookup` (Tra cứu thuốc/bệnh thông minh)
   - `POST /v1/document-chat` (Phân tích tài liệu PDF/DOC)
   - `POST /v1/vision-multi` (Phân tích hình ảnh)
   - `GET /v1/benh`, `GET /v1/thuoc` (Danh mục dữ liệu y khoa)

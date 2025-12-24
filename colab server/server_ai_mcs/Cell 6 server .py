@@ -587,6 +587,87 @@ async def chat_simple(req: dict, x_mode: Optional[str] = Header(None)):
     except:
         return {"reply": ""}
 
+@app.post("/v1/health-lookup")
+async def health_lookup(req: HealthLookupRequest):
+    # Endpoint tra cứu thuốc/bệnh (Added fix for 404 error)
+    try:
+        def classify_query(q: str):
+            t = (q or "").strip().lower()
+            drug_hints = ['thuốc', 'viên', 'mg', 'mcg', 'ml', '%', 'dạng', 'sirô', 'siro', 'kem', 'mỡ', 'ống', 'chai', 'hàm lượng', 'liều']
+            disease_hints = ['bệnh', 'hội chứng', 'viêm', 'ung thư', 'tiểu đường', 'cao huyết áp', 'tim mạch', 'hen', 'suy', 'nhiễm', 'virus', 'vi khuẩn', 'vi rút']
+            symptom_hints = ['triệu chứng', 'dấu hiệu', 'đau', 'nhức', 'sốt', 'ho', 'mệt', 'mệt mỏi', 'chóng mặt', 'buồn nôn', 'phát ban', 'khó thở', 'tiêu chảy', 'táo bón', 'đau đầu']
+            import re
+            is_drug = any(k in t for k in drug_hints) or bool(re.search(r"\b\d+\s?(mg|ml|mcg|%)\b", t))
+            is_symptom = any(k in t for k in symptom_hints)
+            is_disease = any(k in t for k in disease_hints)
+            mode = 'drug' if is_drug else ('disease' if is_disease else ('symptom' if is_symptom else None))
+            return {'mode': mode, 'is_medical': is_drug or is_symptom or is_disease}
+
+        cls = classify_query(req.query)
+        inferred_mode = (req.mode or cls.get('mode') or '').lower()
+        
+        # Thử tìm trong JSON nếu có (Optional)
+        root = os.environ.get("DATA_ROOT", "/content/drive/MyDrive/DoctorAI/data")
+        data_path = os.path.join(root, "data.json")
+        drug_path = os.path.join(root, "thuoc.json")
+        disease_match = None
+        drug_match = None
+        
+        def norm(s): return (s or "").strip().lower()
+
+        try:
+            if os.path.exists(data_path):
+                with open(data_path, "r", encoding="utf-8") as f:
+                    db = json.load(f)
+                if isinstance(db.get("diseases"), list):
+                    for d in db["diseases"]:
+                        if norm(d.get("name")) == norm(req.query) or (req.query and norm(req.query) in norm(d.get("name"))):
+                            disease_match = d
+                            break
+            if os.path.exists(drug_path):
+                 with open(drug_path, "r", encoding="utf-8") as f:
+                    arr = json.load(f)
+                 if isinstance(arr, list):
+                    for item in arr:
+                        if norm(item.get("name")) == norm(req.query) or (req.query and norm(req.query) in norm(item.get("name"))):
+                            drug_match = {"name": item.get("name"), "content": item.get("content")}
+                            break
+        except Exception:
+            pass
+
+        if inferred_mode == "drug" and drug_match:
+             text = f"Thuốc: {drug_match.get('name','')}\n" + (drug_match.get("content") or "")
+             return {"success": True, "response": text, "conversation_id": req.conversation_id, "mode": "gpu"}
+        if inferred_mode == "disease" and disease_match:
+             d = disease_match
+             text = f"Bệnh: {d.get('name','')}\n" + d.get("definition", "")
+             return {"success": True, "response": text, "conversation_id": req.conversation_id, "mode": "gpu"}
+
+        # AI Generation Fallback (Thay thế RAG nếu thiếu)
+        doctor_prompt = (
+            "Bạn là bác sĩ AI chuyên nghiệp. Hãy trả lời câu hỏi y tế của người dùng một cách chính xác, ngắn gọn. "
+            "LƯU Ý: Luôn khuyến cáo người dùng đi khám bác sĩ. Không kê đơn thuốc cụ thể."
+        )
+        input_text = chat_tokenizer.apply_chat_template(
+            [{"role": "system", "content": doctor_prompt}, {"role": "user", "content": req.query}],
+            tokenize=False,
+            add_generation_prompt=True
+        )
+        inputs = chat_tokenizer(input_text, return_tensors="pt").to("cuda")
+        with torch.no_grad():
+            output = chat_model.generate(
+                **inputs,
+                max_new_tokens=512,
+                temperature=0.3,
+                do_sample=True,
+                pad_token_id=chat_tokenizer.eos_token_id
+            )
+        response_text = chat_tokenizer.decode(output[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True)
+        return {"success": True, "response": response_text, "conversation_id": req.conversation_id, "mode": "gpu"}
+
+    except Exception as e:
+        return {"success": False, "error": str(e), "mode": "gpu"}
+
 @app.post("/v1/friend-chat/completions")
 async def friend_chat_completions(req: ChatRequest, x_mode: Optional[str] = Header(None)):
     try:
