@@ -1,7 +1,12 @@
 # Hệ thống Tư vấn Y tế AI (Medical Consulting System)
 
 Hệ thống Chatbot Tư vấn Y tế thông minh hỗ trợ người dùng tra cứu thông tin sức khỏe, sàng lọc tâm lý và tư vấn sơ bộ dựa trên kiến trúc Hybrid AI (kết hợp xử lý CPU cục bộ và GPU đám mây).
+# Scribd Document Link
 
+[Medical Consulting AI with Llama](https://www.scribd.com/document/991937872/Medical-Consulting-AI-with-Llama)
+
+
+<existing content here>
 ## 🏆 3 Trụ Cột Cốt Lõi (Project Pillars)
 
 Dự án được xây dựng dựa trên 3 trụ cột công nghệ và sáng tạo, giải quyết các bài toán thực tế:
@@ -165,6 +170,5 @@ Tiểu Luận Chuyên Ngành - Hệ thống Tư vấn Y tế AI
 - **21110116** - Cao Nguyễn Thành An (Leader)
 - **21144449** - Cao Thọ Phú Thịnh
 - **21110860** - Trịnh Ngọc Anh Tuyên
-  ![Medical Consulting AI With Llama](https://www.scribd.com/document/991937872/Medical-Consulting-AI-with-Llama)
 ---
-*© 2024 Medical Consulting System. All rights reserved.*
+*© 2025 Medical Consulting System. All rights reserved.*
