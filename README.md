@@ -165,6 +165,6 @@ Tiểu Luận Chuyên Ngành - Hệ thống Tư vấn Y tế AI
 - **21110116** - Cao Nguyễn Thành An (Leader)
 - **21144449** - Cao Thọ Phú Thịnh
 - **21110860** - Trịnh Ngọc Anh Tuyên
-
+  ![Medical Consulting AI With Llama](https://www.scribd.com/document/991937872/Medical-Consulting-AI-with-Llama)
 ---
 *© 2024 Medical Consulting System. All rights reserved.*
